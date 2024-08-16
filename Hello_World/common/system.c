@@ -1,5 +1,7 @@
 #include "system.h"
 
+u8g_t u8g;
+
 static void _delay_system_ticks_sub(uint32_t sys_ticks)
 {
   uint32_t start_val, end_val, curr_val;

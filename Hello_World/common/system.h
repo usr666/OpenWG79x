@@ -9,7 +9,7 @@
 #define a0   20
 
 
-u8g_t u8g;
+extern u8g_t u8g;
 
 
 

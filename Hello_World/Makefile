@@ -1,6 +1,5 @@
-BASE:=/cygdrive/f/arm-dev
-
-GCCPATH:=$(BASE)/GCCarm
+# Set GCCPATH variable before building, for example:
+# export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
 
 TARGETNAME:=$(firstword $(basename $(wildcard *.c)))
 SYSINC:=common
