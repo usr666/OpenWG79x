@@ -61,11 +61,6 @@ LDLIBS:=--specs=nano.specs -lc -lc -lnosys -L$(LDSCRIPTDIR) -T $(LDSCRIPT)
 all: $(DISNAME) $(HEXNAME) $(BINNAME)
 	$(SIZE) $(ELFNAME)
 
-.PHONY: upload
-upload: $(DISNAME) $(HEXNAME) $(ELFNAME)
-	$(FLASHTOOL) HEXFILE\($(HEXNAME),NOCHECKSUMS,FILL,PROTECTISP\) COM\(5,38400\) DEVICE\($(FLASHMAGICDEVICE),12.000,0\)
-	$(SIZE) $(ELFNAME)
-
 .PHONY: clean
 clean:
 	$(RM) $(OBJ) $(HEXNAME) $(BINNAME) $(ELFNAME) $(DISNAME) $(MAPNAME)
@@ -85,11 +80,6 @@ clean:
 # explicit rules
 $(ELFNAME): $(OBJ) 
 	$(LINK.o) $(LFLAGS) $(OBJ) $(LDLIBS) -o $@
-#$(ELFNAME): $(LIBNAME)($(OBJ)) 
-#	$(LINK.o) $(LFLAGS) $(LIBNAME) $(LDLIBS) -o $@
-
 
 $(DISNAME): $(ELFNAME)
 	$(OBJDUMP) -S $< > $@
-
-	
