@@ -1,6 +1,9 @@
-#include "Hello_World.h" 
+#include "LPC17xx.h"
+#include "system.h"
+#include "u8g.h"
 
-int main(void) {
+
+void init_hal(void) {
   
 // Setup Systick
   SysTick->LOAD = (SystemCoreClock/1000UL*(unsigned long)SYS_TICK_PERIOD_IN_MS) - 1;
@@ -42,15 +45,4 @@ int main(void) {
 // Turn on LCD backlight
   LPC_GPIO1->FIOPIN |= ( 1 << 20 );  // p1.20 LCD backlight ON
  
-
-
-
-  for (;;){
-    u8g_FirstPage(&u8g);
-    do {
-      u8g_SetFont(&u8g, u8g_font_tpss);
-      u8g_DrawStr(&u8g,  0, 25, "Hello World!");
-    } while ( u8g_NextPage(&u8g) );
-    delay_micro_seconds(250000);
-  }
 }

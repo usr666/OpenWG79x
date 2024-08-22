@@ -1,24 +1,21 @@
 # Set GCCPATH variable before building, for example:
 # export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
 
-TARGETNAME:=$(firstword $(basename $(wildcard *.c)))
+#TARGETNAME:=$(firstword $(basename $(wildcard *.c)))
+TARGETNAME:=openwg79x
 SYSINC:=common
 U8GPATH:=u8g
 LDSCRIPTDIR:=$(SYSINC)
-SRC:=$(wildcard *.c)
+SRC:=main.c display.c hal/hal.c $(wildcard $(SYSINC)/*.c) $(wildcard $(U8GPATH)/*.c)
 MCPU:=cortex-m3
 
 STARTUP:=$(wildcard $(SYSINC)/*.S)
 
-SYSSRC:=$(wildcard $(LDSCRIPTDIR)/*.c)
 LDSCRIPT:=$(wildcard $(LDSCRIPTDIR)/*.ld)
 
 
 #================================================
 # Main part of the Makefile starts here. Usually no changes are needed.
-
-# U8G Source files
-U8GSRC:=$(wildcard $(U8GPATH)/*.c)
 
 # Internal Variable Names
 ELFNAME:=$(TARGETNAME).elf
@@ -26,7 +23,7 @@ BINNAME:=$(TARGETNAME).bin
 HEXNAME:=$(TARGETNAME).hex
 DISNAME:=$(TARGETNAME).dis
 MAPNAME:=$(TARGETNAME).map
-OBJ:=$(SRC:.c=.o) $(SYSSRC:.c=.o) $(U8GSRC:.c=.o) $(STARTUP:.S=.o)
+OBJ:=$(SRC:.c=.o) $(STARTUP:.S=.o)
 
 # Replace standard build tools by avr tools
 CC:=$(GCCPATH)/bin/arm-none-eabi-gcc
