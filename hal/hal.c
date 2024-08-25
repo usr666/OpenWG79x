@@ -1,7 +1,5 @@
 #include "LPC17xx.h"
 #include "system.h"
-#include "u8g.h"
-
 
 void init_hal(void) {
   
@@ -17,32 +15,5 @@ void init_hal(void) {
 // Keep Pwr ON
   LPC_GPIO1->FIODIR |= ( 1 << 25 ); // p1.25 output mode.
   LPC_GPIO1->FIOPIN |= ( 1 << 25 ); // p1.25 PWR ON??
-
-// Configure SPI (LCD)
-  LPC_SC->PCLKSEL0 |= (1 << 16);  // set SPI CCLK
-
-  LPC_GPIO1->FIODIR |= (1 << 20);   // P1.20 output mode.
-  LPC_GPIO0->FIODIR |= (1 << rstb); // p0.19 output mode.
-  LPC_GPIO0->FIODIR |= (1 << csb);  // p0.16 output mode.
-  LPC_GPIO0->FIODIR |= (1 << a0);   // p0.20 output mode.
-
-  LPC_PINCON->PINSEL0 |= (1 << 30) | (1 << 31); // p0.15 -> sck
-  LPC_PINCON->PINMODE0 |= (1 << 30);            // p0.15 Repeater mode *todo: need more checking
-
-  LPC_PINCON->PINSEL1 |= ( 0xc | 0x30 );  // p0.17 & p0.18 miso / mosi (no miso??)
-  LPC_PINCON->PINMODE1 |= ( (1 << 0) | (1 << 2) | (1 << 4));  // p0.16 p0.17 p0.18  repeater mode *todo: need more checking
-  LPC_PINCON->PINMODE1 |= (1 << 6);   // p0.19 repeater mode *todo: need more checking
- 
-  LPC_SPI->SPCR |= (1 << 5);  // SPI operates in Master mode.
-
-
-//Configur u8g
-  //u8g_InitComFn(&u8g, &u8g_dev_st7565_nhd_c12864_hw_spi, u8g_com_hw_spi_fn);
-  u8g_InitComFn(&u8g, &u8g_dev_st7565_nhd_c12864_2x_hw_spi, u8g_com_hw_spi_fn); 
-  u8g_SetContrast(&u8g, 4 );
-  u8g_SetDefaultForegroundColor(&u8g);
-  u8g_SetRot180(&u8g);
-// Turn on LCD backlight
-  LPC_GPIO1->FIOPIN |= ( 1 << 20 );  // p1.20 LCD backlight ON
  
 }
