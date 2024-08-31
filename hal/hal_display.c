@@ -1,6 +1,7 @@
 #include "LPC17xx.h"
 #include "u8g.h"
 #include "system.h"
+#include <stdbool.h>
 
 u8g_t u8g;
 
@@ -37,11 +38,17 @@ void init_hal_display(void) {
   u8g_SetContrast(&u8g, 4 );
   u8g_SetDefaultForegroundColor(&u8g);
   u8g_SetRot180(&u8g);
-// Turn on LCD backlight
-  LPC_GPIO1->FIOPIN |= ( 1 << 20 );  // p1.20 LCD backlight ON
- 
+
 }
 
+void set_backlight(bool on)
+{
+  if(on) {
+    LPC_GPIO1->FIOSET = ( 1 << 20 );  // p1.20 LCD backlight ON
+  } else {
+    LPC_GPIO1->FIOCLR = ( 1 << 20 );  // p1.20 LCD backlight ON
+  }
+}
 void spi_out(uint8_t data)
 {
   LPC_SPI->SPDR = data;

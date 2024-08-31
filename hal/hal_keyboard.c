@@ -25,15 +25,11 @@
 #define KEY_STOP_PORTNO   1
 #define KEY_STOP_PINNO    17 // 1 if button pressed
 #define KEY_POWER_PORTNO  1
-#define KEY_POWER_PINNO   29 // 0 if button pressed
+#define KEY_POWER_PINNO   28 // 0 if button pressed
 
 static keys_t pressedkey;
 
 void init_hal_keyboard(void) {
-    //LPC_PINCON->PINMODE2 &= ~(3 << 0);
-    //LPC_GPIO1->FIOPIN &= ~0xC600;
-    //LPC_GPIO1->FIODIR |= (1 << 10);
-
     // Power- and Stop-button seems to be good with default port settings.
 
     // Set key rows as output, values high
@@ -41,6 +37,7 @@ void init_hal_keyboard(void) {
     LPC_GPIO1->FIOSET = ((1 << KEY_R1_PINNO) | (1 << KEY_R2_PINNO) | (1 << KEY_R3_PINNO) | (1 << KEY_R4_PINNO));  // ASSUMES all signals are on GPIO1
 
 }
+
 uint32_t getKeyboardDebugvalue(void)
 {
     return LPC_GPIO1->FIOPIN;

@@ -3,5 +3,6 @@
 
 void init_display(void);
 void task_display(void);
+void printText(char *str);
 
 #endif

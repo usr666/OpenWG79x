@@ -12,8 +12,5 @@ void init_hal(void) {
   LPC_SC->PCONP |= (1 << 15);   // power up GPIO
   LPC_SC->PCONP |= (1 << 8);    // power up SPI
 
-// Keep Pwr ON
-  LPC_GPIO1->FIODIR |= ( 1 << 25 ); // p1.25 output mode.
-  LPC_GPIO1->FIOPIN |= ( 1 << 25 ); // p1.25 PWR ON??
  
 }
