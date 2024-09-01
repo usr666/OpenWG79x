@@ -3,6 +3,7 @@
 #include "hal/hal_keyboard.h"
 #include "hal/hal_sensors.h"
 #include "hal/hal_power.h"
+#include "hal/hal_motor.h"
 #include "system.h"
 #include "display.h"
 
@@ -13,6 +14,7 @@ int main(void) {
   init_hal_display();
   init_hal_keyboard();
   init_hal_sensors();
+  init_hal_motor();
   init_display();
 
   set_backlight(true);

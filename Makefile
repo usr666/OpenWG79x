@@ -6,7 +6,7 @@ TARGETNAME:=openwg79x
 SYSINC:=common
 U8GPATH:=u8g
 LDSCRIPTDIR:=$(SYSINC)
-SRC:=main.c display.c hal/hal.c hal/hal_power.c hal/hal_sensors.c hal/hal_keyboard.c hal/hal_display.c $(wildcard $(SYSINC)/*.c) $(wildcard $(U8GPATH)/*.c)
+SRC:=main.c display.c hal/hal.c hal/hal_motor.c hal/hal_power.c hal/hal_sensors.c hal/hal_keyboard.c hal/hal_display.c $(wildcard $(SYSINC)/*.c) $(wildcard $(U8GPATH)/*.c)
 MCPU:=cortex-m3
 
 STARTUP:=$(wildcard $(SYSINC)/*.S)
