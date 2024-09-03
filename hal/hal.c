@@ -1,4 +1,4 @@
-#include "LPC17xx.h"
+#include "hal_mcu.h"
 #include "system.h"
 
 void init_hal(void) {

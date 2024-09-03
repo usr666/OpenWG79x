@@ -9,4 +9,8 @@ void delay_micro_seconds(uint32_t us);
 #define SYS_TICK_PERIOD_IN_MS 10
 extern uint32_t systick_cnt; // Counter that is increased every SYS_TICK_PERIOD_IN_MS
 
+//todo: implement these
+#define DOASSERT(x)
+#define ASSERT(x)
+
 #endif

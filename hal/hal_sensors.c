@@ -1,4 +1,4 @@
-#include "LPC17xx.h"
+#include "hal_mcu.h"
 #include "hal_sensors.h"
 #include "system.h"
 #include <stdbool.h>
@@ -17,10 +17,10 @@ bool get_sensor(sensors_t sensor)
 {
     uint32_t value;
     if(sensor == SENSOR_FRONT) {
-        value = (((LPC_GPIO4->FIOPIN) & (1 << FRONT_SENSOR_PINNO)));
+        value = (((LPC_GPIOx(FRONT_SENSOR_PORTNO)->FIOPIN) & (1 << FRONT_SENSOR_PINNO)));
     } else {
         // SENSOR_LIFT
-        value = (((LPC_GPIO1->FIOPIN) & (1 << LIFT_SENSOR_PINNO)));
+        value = (((LPC_GPIOx(LIFT_SENSOR_PORTNO)->FIOPIN) & (1 << LIFT_SENSOR_PINNO)));
     }
     
     if(value == 0) {

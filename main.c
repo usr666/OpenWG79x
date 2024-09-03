@@ -28,20 +28,14 @@ int main(void) {
   for (;;){
     task_display();
     task_keyboard();
+    task_motor();
 
     if(get_power_button()) {
       printText("poweroff");
       poweroff();
       set_backlight(false);
     }
-    if(get_pressed_key() == KEY1){
-      printText("backlight on");
-      set_backlight(true);
-    }
-    if(get_pressed_key() == KEY2){
-      printText("backlight off");
-      set_backlight(false);
-    }
+
     delay_micro_seconds(250000);
   }
 }

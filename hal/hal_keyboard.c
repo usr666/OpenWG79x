@@ -1,4 +1,4 @@
-#include "LPC17xx.h"
+#include "hal_mcu.h"
 #include "hal_keyboard.h"
 #include "system.h"
 #include <stdbool.h>

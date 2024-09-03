@@ -979,7 +979,7 @@ typedef struct
 #define LPC_GPDMACH7_BASE     (LPC_AHB_BASE  + 0x041E0)
 #define LPC_USB_BASE          (LPC_AHB_BASE  + 0x0C000)
 
-/* GPIOs                                                                      */
+/* GPIOs     */
 #define LPC_GPIO0_BASE        (LPC_GPIO_BASE + 0x00000)
 #define LPC_GPIO1_BASE        (LPC_GPIO_BASE + 0x00020)
 #define LPC_GPIO2_BASE        (LPC_GPIO_BASE + 0x00040)

@@ -1,4 +1,4 @@
-#include "LPC17xx.h"
+#include "hal_mcu.h"
 #include "u8g.h"
 #include "system.h"
 #include <stdbool.h>
