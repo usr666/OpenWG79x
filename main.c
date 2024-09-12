@@ -10,11 +10,11 @@
 
 int main(void) {
   init_hal();
+  init_hal_motor(); // Needs to be done fast so that motors does not move too much
   init_hal_power();
   init_hal_display();
   init_hal_keyboard();
   init_hal_sensors();
-  init_hal_motor();
   init_display();
 
   set_backlight(true);

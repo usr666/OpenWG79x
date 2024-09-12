@@ -121,7 +121,7 @@ void print_motor_menu(void)
 {
     char buffer[64];
     u8g_FirstPage(&u8g);
-    do {        
+    do {  
         sprintf(buffer, "1 RIGHT   %d", rightspeed);
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*1, buffer);
         sprintf(buffer, "2 LEFT    %d", leftspeed);
@@ -226,6 +226,78 @@ void task_display(void) {
                 }
 
 */
+/*
+// runs right motor when brake=1 and enable=0 and pwm=1. direction controls direction
+                if(currentpressedkey==KEY1) {
+                    brake ^= 1;
+                }
+                if(currentpressedkey==KEY2) {
+                    enable ^= 1;
+                }
+                if(currentpressedkey==KEY3) {
+                    pwm ^= 1;
+                }
+                if(currentpressedkey==KEY4) {
+                    direction ^= 1;
+                }
+                if(brake) {
+                    LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOSET = ( 1 << RIGHT_BRAKE_PINNO);
+                } else {
+                    LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOCLR = ( 1 << RIGHT_BRAKE_PINNO);
+                }
+                if(enable) {
+                    LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOSET = ( 1 << RIGHT_ENABLE_PINNO);
+                } else {
+                    LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOCLR = ( 1 << RIGHT_ENABLE_PINNO);
+                }
+                if(pwm) {
+                    LPC_GPIOx(RIGHT_PWM_PORTNO)->FIOSET = ( 1 << RIGHT_PWM_PINNO);
+                } else {
+                    LPC_GPIOx(RIGHT_PWM_PORTNO)->FIOCLR = ( 1 << RIGHT_PWM_PINNO);
+                }
+                if(direction) {
+                    LPC_GPIOx(RIGHT_DIRECTION_PORTNO)->FIOSET = ( 1 << RIGHT_DIRECTION_PINNO);
+                } else {
+                    LPC_GPIOx(RIGHT_DIRECTION_PORTNO)->FIOCLR = ( 1 << RIGHT_DIRECTION_PINNO);                    
+                }
+*/
+/*
+// runs spindle motor when brake=1 and enable=0 and pwm=1. direction controls direction
+// brake=0 stops motor, 1 free runs motor
+                if(currentpressedkey==KEY1) {
+                    brake ^= 1;
+                }
+                if(currentpressedkey==KEY2) {
+                    enable ^= 1;
+                }
+                if(currentpressedkey==KEY3) {
+                    pwm ^= 1;
+                }
+                if(currentpressedkey==KEY4) {
+                    direction ^= 1;
+                }
+                if(brake) {
+                    LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIOSET = ( 1 << SPINDLE_BRAKE_PINNO);
+                } else {
+                    LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIOCLR = ( 1 << SPINDLE_BRAKE_PINNO);
+                }
+                if(enable) {
+                    LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOSET = ( 1 << SPINDLE_ENABLE_PINNO);
+                } else {
+                    LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = ( 1 << SPINDLE_ENABLE_PINNO);
+                }
+                if(pwm) {
+                    LPC_GPIOx(SPINDLE_PWM_PORTNO)->FIOSET = ( 1 << SPINDLE_PWM_PINNO);
+                } else {
+                    LPC_GPIOx(SPINDLE_PWM_PORTNO)->FIOCLR = ( 1 << SPINDLE_PWM_PINNO);
+                }
+                if(direction) {
+                    LPC_GPIOx(SPINDLE_DIRECTION_PORTNO)->FIOSET = ( 1 << SPINDLE_DIRECTION_PINNO);
+                } else {
+                    LPC_GPIOx(SPINDLE_DIRECTION_PORTNO)->FIOCLR = ( 1 << SPINDLE_DIRECTION_PINNO);                    
+                }
+*/
+
 
                 if(currentpressedkey==KEY1) {
                     rightspeed=(rightspeed+10)%100;
@@ -248,6 +320,8 @@ void task_display(void) {
                 if(currentpressedkey==KEY6) {
                     set_motor_speed(MOTOR_SPINDLE, 0);
                 }
+
+                
                 /* starts left motor when 2 is pressed 
                 if(currentpressedkey==KEY1) {
                     LPC_GPIOx(RIGHT_DIRECTION_PORTNO)->FIODIR |= ( 1 << RIGHT_DIRECTION_PINNO);

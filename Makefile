@@ -43,7 +43,7 @@ COMMON_FLAGS += -ffunction-sections -fdata-sections
 # Assembler flags
 ASFLAGS:=$(COMMON_FLAGS) -D__STARTUP_CLEAR_BSS -D__START=main
 # C flags
-CFLAGS:=$(COMMON_FLAGS) -std=gnu99
+CFLAGS:=$(COMMON_FLAGS) -std=gnu99 -ggdb
 # LD flags
 GC:=-Wl,--gc-sections
 MAP:=-Wl,-Map=$(MAPNAME)
