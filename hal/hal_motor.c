@@ -28,7 +28,7 @@
 #define RIGHT_DIRECTION_PORTNO   2 // 1=FORWARD, 0=BACKWARDS
 #define RIGHT_DIRECTION_PINNO    6 
 #define LEFT_DIRECTION_PORTNO    0
-#define LEFT_DIRECTION_PINNO     0
+#define LEFT_DIRECTION_PINNO     0 // Inverted?  0=FORWARD, 1=BACKWARDS
 #define SPINDLE_DIRECTION_PORTNO 3
 #define SPINDLE_DIRECTION_PINNO  26
 
@@ -39,6 +39,14 @@ static int8_t requestedspeed[MOTOR_NUMBER_OF_MOTORS] = {0};
 static int32_t currentspeed_times_100[MOTOR_NUMBER_OF_MOTORS] = {0};
 
 void init_hal_motor(void) {
+  //Start with motors disabled until pwms are initialized
+  LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIODIR |= ( 1 << RIGHT_ENABLE_PINNO);
+  LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOSET = ( 1 << RIGHT_ENABLE_PINNO);
+  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIODIR |= ( 1 << LEFT_ENABLE_PINNO);
+  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOCLR = ( 1 << LEFT_ENABLE_PINNO);
+  LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIODIR |= ( 1 << SPINDLE_ENABLE_PINNO);
+  LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOSET = ( 1 << SPINDLE_ENABLE_PINNO);
+
   LPC_GPIOx(RIGHT_DIRECTION_PORTNO)->FIODIR |= ( 1 << RIGHT_DIRECTION_PINNO);
   LPC_GPIOx(RIGHT_DIRECTION_PORTNO)->FIOSET = ( 1 << RIGHT_DIRECTION_PINNO);
   LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIODIR |= ( 1 << LEFT_DIRECTION_PINNO);
@@ -53,14 +61,6 @@ void init_hal_motor(void) {
   LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIODIR |= ( 1 << SPINDLE_BRAKE_PINNO);
   LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIOSET = ( 1 << SPINDLE_BRAKE_PINNO);
   
-  //Start with motors disabled until pwms are initialized
-  LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIODIR |= ( 1 << RIGHT_ENABLE_PINNO);
-  LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOSET = ( 1 << RIGHT_ENABLE_PINNO);
-  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIODIR |= ( 1 << LEFT_ENABLE_PINNO);
-  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOCLR = ( 1 << LEFT_ENABLE_PINNO);
-  LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIODIR |= ( 1 << SPINDLE_ENABLE_PINNO);
-  LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOSET = ( 1 << SPINDLE_ENABLE_PINNO);
-
   LPC_GPIOx(RIGHT_PWM_PORTNO)->FIODIR |= ( 1 << RIGHT_PWM_PINNO);
   LPC_GPIOx(RIGHT_PWM_PORTNO)->FIOCLR = ( 1 << RIGHT_PWM_PINNO);
   LPC_GPIOx(LEFT_PWM_PORTNO)->FIODIR |= ( 1 << LEFT_PWM_PINNO);
@@ -81,29 +81,24 @@ void init_hal_motor(void) {
   LPC_PWM1->MR2 = 0; // PWM2
   LPC_PWM1->MR3 = 0; // PWM3
   LPC_PWM1->MCR = 0x02; // Reset Timer1 when MR0 matches timer counter
-  LPC_PWM1->LER = 0x0f; // Update MR0-MR3 on next timer1 reset. Note that this write disables update of other MR-registers if the bits were set
+  LPC_PWM1->LER |= 0x0f; // Update MR0-MR3 on next timer1 reset.
+
+  LPC_PWM1->TCR = 0x02;    // Reset counter
+  LPC_PWM1->TCR = 0x01;    // Release reset, enable counter
+
   LPC_PWM1->PCR |= (0x0e00); // Enable pwm 1-3
 
-  //LPC_PWM1->TCR = BIT(1);             // Counter Reset
-
-  LPC_PWM1->TCR = 0x09;    // PWM Timer Counter enable and PWM Enable
+  // Wait until all pwms are low. Why is this needed???
+  for(long a=0;a<10000000UL;a++)
+  {
+    asm("nop");
+  }
 
   // Enable motors now that pwm is enabled.
   LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOCLR = ( 1 << RIGHT_ENABLE_PINNO);
   LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = ( 1 << LEFT_ENABLE_PINNO);
   LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = ( 1 << SPINDLE_ENABLE_PINNO);
 
-/*
-// TMP DEBUG
-  LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIODIR |= ( 1 << LEFT_DIRECTION_PINNO);
-  LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIOSET = ( 1 << LEFT_DIRECTION_PINNO);
-  LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIODIR |= ( 1 << LEFT_BRAKE_PINNO);
-  LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOCLR = ( 1 << LEFT_BRAKE_PINNO);
-  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIODIR |= ( 1 << LEFT_ENABLE_PINNO);
-  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOCLR = ( 1 << LEFT_ENABLE_PINNO);
-  LPC_GPIOx(LEFT_PWM_PORTNO)->FIODIR |= ( 1 << LEFT_PWM_PINNO);
-  LPC_GPIOx(LEFT_PWM_PORTNO)->FIOCLR = ( 1 << LEFT_PWM_PINNO);
-  */
 }
 
 static void setdirection(motors_t motor, uint8_t value)
@@ -118,9 +113,9 @@ static void setdirection(motors_t motor, uint8_t value)
       break;
     case MOTOR_LEFT:
       if(value) {
-        LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIOSET = ( 1 << LEFT_DIRECTION_PINNO);
-      } else {
         LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIOCLR = ( 1 << LEFT_DIRECTION_PINNO);
+      } else {
+        LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIOSET = ( 1 << LEFT_DIRECTION_PINNO);
       }
       break;
     case MOTOR_SPINDLE:
@@ -142,17 +137,19 @@ static void setpwm(motors_t motor, uint32_t value_times_100)
   switch(motor) {
     case MOTOR_RIGHT:
       LPC_PWM1->MR1 = timervalue;
+      LPC_PWM1->LER |= (1 << 1);
       break;
     case MOTOR_LEFT:
       LPC_PWM1->MR2 = timervalue;
+      LPC_PWM1->LER |= (1 << 2);
       break;
     case MOTOR_SPINDLE:
       LPC_PWM1->MR3 = timervalue;
+      LPC_PWM1->LER |= (1 << 3);
       break;
     default:
       DOASSERT();
   }
-  LPC_PWM1->LER = 0x0f; // Update MR0-MR3 on next timer1 reset. Note that this write disables update of other MR-registers if the bits were set
 
 }
 
