@@ -11,12 +11,11 @@ sudo tar -xvf gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2 -C /opt/
 Build firmware:
 Set GCCPATH variable before building, for example:
 export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
-cd Hello_World
 make
 
 Load firmware in lawnmower:
 Option 1: Use USB-stick
-Place built file Hello_World.bin on USB-stick and rename it to DB275_GRAF.bin
+Place built file openwg79x.bin on USB-stick and rename it to DB275_GRAF.bin
 Insert USB-stick in lawnmower and flash as usual firmware.
 
 Option 2: Open the lawnmower and solder connections for an ST-Link v2 programmer
@@ -33,4 +32,4 @@ First backup existing firmware including bootloader:
 openocd -f interface/stlink.cfg -c "transport select hla_swd"  -f target/lpc17xx.cfg -c "adapter speed 100" -c init -c "dump_image img.bin 0 0x100000" -c shutdown
 
 Then program new firmware file:
-openocd -f interface/stlink.cfg -c "transport select hla_swd"  -f target/lpc17xx.cfg -c "adapter speed 100" -c init -c "program Hello_World.bin 0x9000" -c shutdown
+openocd -f interface/stlink.cfg -c "transport select hla_swd"  -f target/lpc17xx.cfg -c "adapter speed 100" -c init -c "program openwg79x.bin 0x9000" -c shutdown
