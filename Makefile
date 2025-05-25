@@ -6,10 +6,9 @@ TARGETNAME:=openwg79x
 SYSINC:=common
 U8GPATH:=u8g
 LDSCRIPTDIR:=$(SYSINC)
-SRC:=main.c display.c hal/hal.c hal/hal_motor.c hal/hal_power.c hal/hal_sensors.c hal/hal_keyboard.c hal/hal_display.c $(wildcard $(SYSINC)/*.c) $(wildcard $(U8GPATH)/*.c)
+# startup_LPC17xx.c must be first for weak-defines to work
+SRC:=common/startup_LPC17xx.c common/system_LPC17xx.c common/system.c common/core_cm3.c main.c display.c hal/hal.c hal/hal_motor.c hal/hal_power.c hal/hal_sensors.c hal/hal_keyboard.c hal/hal_display.c $(wildcard $(U8GPATH)/*.c)
 MCPU:=cortex-m3
-
-STARTUP:=$(wildcard $(SYSINC)/*.S)
 
 LDSCRIPT:=$(wildcard $(LDSCRIPTDIR)/*.ld)
 
@@ -23,7 +22,7 @@ BINNAME:=$(TARGETNAME).bin
 HEXNAME:=$(TARGETNAME).hex
 DISNAME:=$(TARGETNAME).dis
 MAPNAME:=$(TARGETNAME).map
-OBJ:=$(SRC:.c=.o) $(STARTUP:.S=.o)
+OBJ:=$(SRC:.c=.o)
 
 # Replace standard build tools by avr tools
 CC:=$(GCCPATH)/bin/arm-none-eabi-gcc
@@ -79,4 +78,4 @@ $(ELFNAME): $(OBJ)
 	$(LINK.o) $(LFLAGS) $(OBJ) $(LDLIBS) -o $@
 
 $(DISNAME): $(ELFNAME)
-	$(OBJDUMP) -S $< > $@
+	$(OBJDUMP) -S -d $< > $@

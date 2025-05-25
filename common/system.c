@@ -2,7 +2,7 @@
 #include "hal/hal_mcu.h"
 
 
-uint32_t systick_cnt __attribute__((aligned(4))) = 0; // If variable is 4-byte aligned read/writes are atomic
+volatile uint32_t systick_cnt __attribute__((aligned(4))) = 0; // If variable is 4-byte aligned read/writes are atomic
 
 static void _delay_system_ticks_sub(uint32_t sys_ticks)
 {

@@ -2,7 +2,10 @@
 #include "system.h"
 
 void init_hal(void) {
-  
+
+// Setup interrupt vector table address
+  SCB->VTOR = 0x00009000;  
+
 // Setup Systick
   SysTick->LOAD = (SystemCoreClock/1000UL*(unsigned long)SYS_TICK_PERIOD_IN_MS) - 1;
   SysTick->VAL = 0;
@@ -12,5 +15,4 @@ void init_hal(void) {
   LPC_SC->PCONP |= (1 << 15);   // power up GPIO
   LPC_SC->PCONP |= (1 << 8);    // power up SPI
 
- 
 }
