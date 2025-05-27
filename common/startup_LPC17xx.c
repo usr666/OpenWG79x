@@ -106,7 +106,7 @@ extern void _CPUregTestPOST (void);
 * 0x0000.0000.
 *
 ******************************************************************************/
-#define STACK_SIZE                              0x00000a00
+#define STACK_SIZE                              0x00000c00
 
 __attribute__ ((section(".stackarea")))
 /* static */ unsigned long pulStack[STACK_SIZE];
@@ -230,6 +230,9 @@ void Reset_Handler(void)
     //
 //    __ASM volatile ("bl _CPUregTestPOST \t\n");
 
+#ifndef __NO_SYSTEM_INIT
+    SystemInit();
+#endif
     //
     // Call the application's entry point.
     //
