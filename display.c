@@ -40,12 +40,15 @@ char *keyStrings[KEY_NUMBER_OF_KEYS] = {
 
 void print_init_menu(void)
 {
-    //char buffer[64];
+    char buffer[64];
+    sprintf(buffer, "%ld", systick_cnt);
     u8g_FirstPage(&u8g);
     do {
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT, textStr);
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, "1=SENSORS 2=GPIO");
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, "3=MOTOR 4=WIRESENS");
+        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, buffer);
+
     } while ( u8g_NextPage(&u8g) );
 }
 
