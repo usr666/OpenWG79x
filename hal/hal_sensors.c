@@ -62,6 +62,8 @@ void __attribute__ ((interrupt)) EINT3_IRQHandler(void)
     time =  LPC_TIM0->TC;
     intr = LPC_GPIOINT->IO0IntStatR;
     intf = LPC_GPIOINT->IO0IntStatF;
+    LPC_GPIOINT->IO0IntClr = intr;
+    LPC_GPIOINT->IO0IntClr = intf;
 
     if(index < NO_OF_INTERRUPTDATA) {
         interruptdata[index].time = time;
