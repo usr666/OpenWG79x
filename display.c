@@ -97,8 +97,9 @@ void print_motor_menu(void)
 
 }
 
-static uint8_t amp=0, pol=0, intindex=0;
+static uint8_t amp=0, pol=0;
 
+#define RT(x) ((x > 0xffff) ? ((x >> 16) | 0xf0000) : x)
 void print_wiresensor_menu(void)
 {
     char buffer[64];
@@ -106,11 +107,14 @@ void print_wiresensor_menu(void)
     do {
         sprintf(buffer, "1 AMP=%d 2 POL=%d 3T", amp, pol);
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*1, buffer);
-        sprintf(buffer, "P0.7-10 %d%d%d%d", ((LPC_GPIO0->FIOPIN & (1<<7)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<8)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<9)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<10)) ? 1 : 0));
+        //sprintf(buffer, "P0.7-10 %d%d%d%d", ((LPC_GPIO0->FIOPIN & (1<<7)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<8)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<9)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<10)) ? 1 : 0));
+        //u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(interruptdata[0].time), interruptdata[0].intstatus, RT(interruptdata[1].time), interruptdata[1].intstatus);
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
-        sprintf(buffer, "%lu %02x", interruptdata[intindex].time, interruptdata[intindex].intstatus);
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(interruptdata[2].time), interruptdata[2].intstatus, RT(interruptdata[3].time), interruptdata[3].intstatus);
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, buffer);
-
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(interruptdata[4].time), interruptdata[4].intstatus, RT(interruptdata[5].time), interruptdata[5].intstatus);
+        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, buffer);
 
     } while ( u8g_NextPage(&u8g) );
     if(amp > 0) {

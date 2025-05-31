@@ -60,15 +60,21 @@ void __attribute__ ((interrupt)) EINT3_IRQHandler(void)
 
     LPC_SC->EXTINT = 1<<3; // Clear EINT3 flag
     time =  LPC_TIM0->TC;
+    // Reset timer0
+    LPC_TIM0->TCR = 0x02;
+    LPC_TIM0->TCR = 0x01;
+
     intr = LPC_GPIOINT->IO0IntStatR;
     intf = LPC_GPIOINT->IO0IntStatF;
     LPC_GPIOINT->IO0IntClr = intr;
     LPC_GPIOINT->IO0IntClr = intf;
 
     if(index < NO_OF_INTERRUPTDATA) {
-        interruptdata[index].time = time;
-        interruptdata[index].intstatus = ((intf >> 7 ) & 0x0f) | ((intr >> 3 ) & 0xf0);
-        index++;
+        if(index>0 || time > 100000) {
+            interruptdata[index].time = time;
+            interruptdata[index].intstatus = ((intf >> 7 ) & 0x0f) | ((intr >> 3 ) & 0xf0);
+            index++;
+        }
     } else {
         LPC_GPIOINT->IO0IntEnR = 0;
         LPC_GPIOINT->IO0IntEnF = 0;

@@ -11,7 +11,7 @@ bool get_sensor(sensors_t sensor);
 
 void EnableTimeMeasure(void);
 
-#define NO_OF_INTERRUPTDATA 50
+#define NO_OF_INTERRUPTDATA 10
 typedef struct {
     uint32_t time;
     uint8_t intstatus;
