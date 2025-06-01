@@ -9,7 +9,8 @@
 #define LIFT_SENSOR_PINNO     16
 
 void init_hal_sensors(void) {
-    // Pins are already inputs, seems to work ok
+    // Input pins seems to work ok, set outputs for controlling wire sensors
+    LPC_GPIO0->FIODIR |= (1<<21 | 1<<22);
 
     // Setup timer0 for use in interrupt time measures
     // Power up Timer0
@@ -66,6 +67,7 @@ void EnableTimeMeasure(void)
      Bit 0x400 is Right sensor falling edge
      Bit 0x080 is Left sensor rising edge
      Bit 0x100 is Left sensor falling edge
+     Not sure what the output pins P0.21 and P0.22 do, but they seem to affect wire sensors in some way...
 */
 void __attribute__ ((interrupt)) EINT3_IRQHandler(void)
 {
