@@ -46,7 +46,7 @@ void print_init_menu(void)
     do {
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT, textStr);
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, "1=SENSORS 2=GPIO");
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, "3=MOTOR 4=WIRESENS");
+        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, "3=MOTOR");
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, buffer);
 
     } while ( u8g_NextPage(&u8g) );
@@ -58,10 +58,13 @@ void print_sensors_menu(void)
     u8g_FirstPage(&u8g);
     do {
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT, textStr);
+        sprintf(buffer, "L %s R %s", get_sensor(SENSOR_LEFT_WIRE_INSIDE) ? "IN " : "OUT", get_sensor(SENSOR_RIGHT_WIRE_INSIDE) ? "IN " : "OUT");
+        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
         sprintf(buffer, "LIFT=%d FRONT=%d", (int)get_sensor(SENSOR_LIFT), (int)get_sensor(SENSOR_FRONT));
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, buffer);
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, keyStrings[get_pressed_key()]);
     } while ( u8g_NextPage(&u8g) );
+    trigger_wire_sensor();
 }
 
 void print_gpio_menu(void)
@@ -97,45 +100,11 @@ void print_motor_menu(void)
 
 }
 
-static uint8_t amp=0, pol=0;
-
-#define RT(x) ((x > 0xffff) ? ((x >> 16) | 0xf0000) : x)
-void print_wiresensor_menu(void)
-{
-    char buffer[64];
-    u8g_FirstPage(&u8g);
-    do {
-        sprintf(buffer, "1 AMP=%d 2 POL=%d 3T", amp, pol);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*1, buffer);
-        //sprintf(buffer, "P0.7-10 %d%d%d%d", ((LPC_GPIO0->FIOPIN & (1<<7)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<8)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<9)) ? 1 : 0), ((LPC_GPIO0->FIOPIN & (1<<10)) ? 1 : 0));
-        //u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
-        sprintf(buffer, "%05lx %02x %05lx %02x", RT(interruptdata[0].time), interruptdata[0].intstatus, RT(interruptdata[1].time), interruptdata[1].intstatus);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
-        sprintf(buffer, "%05lx %02x %05lx %02x", RT(interruptdata[2].time), interruptdata[2].intstatus, RT(interruptdata[3].time), interruptdata[3].intstatus);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, buffer);
-        sprintf(buffer, "%05lx %02x %05lx %02x", RT(interruptdata[4].time), interruptdata[4].intstatus, RT(interruptdata[5].time), interruptdata[5].intstatus);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, buffer);
-
-    } while ( u8g_NextPage(&u8g) );
-    if(amp > 0) {
-        LPC_GPIO0->FIOSET = ( 1 << 21);
-    } else {
-        LPC_GPIO0->FIOCLR = ( 1 << 21);
-    }
-    if(pol > 0) {
-        LPC_GPIO0->FIOSET = ( 1 << 22);
-    } else {
-        LPC_GPIO0->FIOCLR = ( 1 << 22);
-    }
-}
-
-
 typedef enum {
     taskstate_init = 0,
     taskstate_debugsensors,
     taskstate_debuggpio,
     taskstate_debugmotors,
-    taskstate_debugwiresensor,
 
     taskstate_number_of_states
 }taskstate_t;
@@ -159,9 +128,6 @@ void task_display(void) {
                 if(currentpressedkey==KEY3) {
                     taskstate = taskstate_debugmotors;
                 }
-                if(currentpressedkey==KEY4) {
-                    taskstate = taskstate_debugwiresensor;
-                }
             }
             break;
         case taskstate_debugsensors:
@@ -177,23 +143,6 @@ void task_display(void) {
             if(lastpressedkey==KEY_NONE) {
                 if(currentpressedkey==KEYBACK) {
                     taskstate = taskstate_init;
-                }
-            }
-            break;
-        case taskstate_debugwiresensor:
-            print_wiresensor_menu();
-            if(lastpressedkey==KEY_NONE) {
-                if(currentpressedkey==KEYBACK) {
-                    taskstate = taskstate_init;
-                }
-                if(currentpressedkey==KEY1) {
-                    amp=amp^1;
-                }
-                if(currentpressedkey==KEY2) {
-                    pol=pol^1;
-                }
-                if(currentpressedkey==KEY3) {
-                    EnableTimeMeasure();
                 }
             }
             break;
