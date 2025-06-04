@@ -7,6 +7,8 @@
 #define FRONT_SENSOR_PINNO    29
 #define LIFT_SENSOR_PORTNO    1
 #define LIFT_SENSOR_PINNO     16
+#define STOPBTN_SENSOR_PORTNO    1
+#define STOPBTN_SENSOR_PINNO     17
 
 #define RIGHT_SENSOR_RISING_EDGE_BITVAL 0x200
 #define LEFT_SENSOR_RISING_EDGE_BITVAL 0x080
@@ -40,6 +42,8 @@ bool get_sensor(sensors_t sensor)
         return ((((LPC_GPIOx(FRONT_SENSOR_PORTNO)->FIOPIN) & (1 << FRONT_SENSOR_PINNO))) == 0 ? true : false);
     } else if(sensor == SENSOR_LIFT) {
         return ((((LPC_GPIOx(LIFT_SENSOR_PORTNO)->FIOPIN) & (1 << LIFT_SENSOR_PINNO))) == 0 ? true : false);
+    } else if(sensor == SENSOR_STOPBTN) {
+        return ((((LPC_GPIOx(STOPBTN_SENSOR_PORTNO)->FIOPIN) & (1 << STOPBTN_SENSOR_PINNO))) == 0 ? false : true);
     } else if(sensor == SENSOR_RIGHT_WIRE_INSIDE) {
         return right_wire_sensor;
     } else if(sensor == SENSOR_LEFT_WIRE_INSIDE) {

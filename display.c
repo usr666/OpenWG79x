@@ -62,7 +62,11 @@ void print_sensors_menu(void)
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
         sprintf(buffer, "LIFT=%d FRONT=%d", (int)get_sensor(SENSOR_LIFT), (int)get_sensor(SENSOR_FRONT));
         u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, buffer);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, keyStrings[get_pressed_key()]);
+        if(get_sensor(SENSOR_STOPBTN)) {
+            u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, "KEYSTOP");
+        } else {
+            u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, keyStrings[get_pressed_key()]);
+        }
     } while ( u8g_NextPage(&u8g) );
     trigger_wire_sensor();
 }
