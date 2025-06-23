@@ -3,6 +3,7 @@
 
 void init_display(void);
 void task_display(void);
-void printText(char *str);
+void print_text(uint8_t row, char *str);
+void clear_display(void);
 
 #endif

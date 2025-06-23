@@ -17,6 +17,7 @@
 
 static bool right_wire_sensor = false, left_wire_sensor = false;
 static bool right_firstedge_detected = false, left_firstedge_detected = false;
+static systimer_t timer;
 
 void init_hal_sensors(void) {
     // Input pins seems to work ok, set outputs for controlling wire sensors
@@ -34,6 +35,15 @@ void init_hal_sensors(void) {
 
     // Let triggersensor setup and start interrupt
     NVIC_DisableIRQ(EINT3_IRQn);
+    systimer_start(&timer, 30);
+}
+
+void task_sensors(void)
+{
+    if(systimer_is_expired(&timer)) {
+        trigger_wire_sensor();
+        systimer_start(&timer, 30);
+    }
 }
 
 bool get_sensor(sensors_t sensor)
@@ -65,11 +75,11 @@ __STATIC_INLINE bool NVIC_IsIRQEnabled(IRQn_Type IRQn)
 }
 
 /* 
-  Triggers a new read of the wire sensors. Result is available in get_sensor function after TBD ms.
+  Triggers a new read of the wire sensors. Result is available in get_sensor function after about 30 ms.
   Until the new sensor data is read last sensor data is returned by get_sensor function.
   If no wire pulses has been detected since last call to trigger_wire_sensor all sensors are set to outside
   since no wire signal is detected. Therefore this function should not be called with a shorter interval 
-  than TBD ms.
+  than 30 ms.
 */
 void trigger_wire_sensor(void)
 {

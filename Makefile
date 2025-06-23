@@ -7,7 +7,7 @@ SYSINC:=common
 U8GPATH:=u8g
 LDSCRIPTDIR:=$(SYSINC)
 # startup_LPC17xx.c must be first for weak-defines to work
-SRC:=common/startup_LPC17xx.c common/system_LPC17xx.c common/system.c common/core_cm3.c main.c display.c hal/hal.c hal/hal_motor.c hal/hal_power.c hal/hal_sensors.c hal/hal_keyboard.c hal/hal_display.c $(wildcard $(U8GPATH)/*.c)
+SRC:=common/startup_LPC17xx.c common/system_LPC17xx.c common/system.c common/core_cm3.c main.c display.c mowercontrol.c debugmenu.c hal/hal.c hal/hal_motor.c hal/hal_power.c hal/hal_sensors.c hal/hal_keyboard.c hal/hal_display.c $(wildcard $(U8GPATH)/*.c)
 MCPU:=cortex-m3
 
 LDSCRIPT:=$(wildcard $(LDSCRIPTDIR)/*.ld)

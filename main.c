@@ -6,6 +6,7 @@
 #include "hal/hal_motor.h"
 #include "system.h"
 #include "display.h"
+#include "mowercontrol.h"
 
 int main(void) {
   init_hal();
@@ -16,6 +17,7 @@ int main(void) {
   init_display();
   set_backlight(true);
   init_hal_motor();
+  init_mowercontrol();
 
   // Wait until power button is released
   while(get_power_button()) {
@@ -24,16 +26,16 @@ int main(void) {
   delay_micro_seconds(100000); // button debounce
   
   for (;;){
+    task_sensors();
     task_display();
     task_keyboard();
     task_motor();
+    task_mowercontrol();
 
     if(get_power_button()) {
-      printText("poweroff");
+      print_text(1, "poweroff");
       poweroff();
       set_backlight(false);
     }
-
-    delay_micro_seconds(250000);
   }
 }

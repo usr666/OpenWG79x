@@ -37,6 +37,7 @@
 static uint8_t ramps[MOTOR_NUMBER_OF_MOTORS] = {100, 100, 100};
 static int8_t requestedspeed[MOTOR_NUMBER_OF_MOTORS] = {0};
 static int32_t currentspeed_times_100[MOTOR_NUMBER_OF_MOTORS] = {0};
+static systimer_t ramp_timer;
 
 void init_hal_motor(void) {
   //Start with motors disabled until pwms are initialized
@@ -99,6 +100,7 @@ void init_hal_motor(void) {
   LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = ( 1 << LEFT_ENABLE_PINNO);
   LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = ( 1 << SPINDLE_ENABLE_PINNO);
 
+  systimer_start(&ramp_timer, 100);
 }
 
 static void setdirection(motors_t motor, uint8_t value)
@@ -153,32 +155,34 @@ static void setpwm(motors_t motor, uint32_t value_times_100)
 
 }
 
-// This function shall be called every 100ms for ramp speeds to work
 static void update_motor_speed(void)
 {
+  bool timer_expired = false;
+  if(systimer_is_expired(&ramp_timer)) {
+    timer_expired = true;
+    systimer_start(&ramp_timer, 100);
+  }
+
   for(uint8_t i=0 ; i < MOTOR_NUMBER_OF_MOTORS ; i++) {
-    int32_t speeddiff = ((int32_t)requestedspeed[i] * 100) - currentspeed_times_100[i];
-    speeddiff = speeddiff * ramps[i] / 100;
-    currentspeed_times_100[i] += speeddiff;
+    if(timer_expired || ramps[i] == 100) {
+      int32_t speeddiff = ((int32_t)requestedspeed[i] * 100) - currentspeed_times_100[i];
+      speeddiff = speeddiff * ramps[i] / 100;
+      currentspeed_times_100[i] += speeddiff;
 
-    if(currentspeed_times_100[i] > 0) {
-      setdirection(i, 1);
-    } else {
-      setdirection(i, 0);
+      if(currentspeed_times_100[i] > 0) {
+        setdirection(i, 0);
+      } else {
+        setdirection(i, 1);
+      }
+
+      setpwm(i, labs(currentspeed_times_100[i]));
     }
-
-    setpwm(i, labs(currentspeed_times_100[i]));
   }
 }
 
 void task_motor(void)
 {
-  static uint32_t lastupdatetick=0;
-
-  if(((systick_cnt-lastupdatetick) / SYS_TICK_PERIOD_IN_MS) > 100) {
-    update_motor_speed();
-    lastupdatetick = systick_cnt;
-  }
+  update_motor_speed();
 }
 
 /* Controls the rate motor speed changes when changing motor speed. 

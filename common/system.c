@@ -88,3 +88,32 @@ void __attribute__ ((interrupt)) SysTick_Handler(void)
 {
   systick_cnt++;
 } 
+
+void systimer_start(systimer_t *timer, uint32_t timeout_ms)
+{
+  timer->starttime_systick = systick_cnt;
+  timer->timeout_systick = timer->starttime_systick + timeout_ms/SYS_TICK_PERIOD_IN_MS;
+}
+
+bool systimer_is_expired(systimer_t *timer)
+{
+  if(systick_cnt > timer->timeout_systick) {
+    return true;
+  }
+  return false;
+}
+
+uint32_t systimer_get_time_since_started(systimer_t *timer)
+{
+  return((systick_cnt - timer->starttime_systick) * SYS_TICK_PERIOD_IN_MS);
+}
+
+uint32_t systimer_get_time_left(systimer_t *timer)
+{
+  uint32_t curtime;
+  curtime = systick_cnt;
+  if(curtime > timer->timeout_systick) {
+    return 0;
+  }
+  return((timer->timeout_systick - curtime) * SYS_TICK_PERIOD_IN_MS);
+}

@@ -7,6 +7,7 @@ typedef enum {
 } sensors_t;
 
 void init_hal_sensors(void);
+void task_sensors(void);
 bool get_sensor(sensors_t sensor);
 
 void trigger_wire_sensor(void);

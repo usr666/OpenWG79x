@@ -2,19 +2,14 @@
 #include <stdio.h>
 #include <string.h>
 #include "hal/hal_display.h"
-#include "hal/hal_keyboard.h"
-#include "hal/hal_sensors.h"
-#include "hal/hal_motor.h"
-
-#include "hal/hal_mcu.h"//debug
-
-static uint8_t rightspeed=0, leftspeed=0, spindlespeed=0;
 
 #define FONT_HEIGHT 13
 #define FONT_WIDTH 7
 
 #define CHARS_PER_ROW 20
-static char textStr[CHARS_PER_ROW] = "";
+#define NUMBER_OF_ROWS 5
+static char textStr[NUMBER_OF_ROWS][CHARS_PER_ROW] = {""};
+static systimer_t timer;
 
 void init_display(void) {
     u8g_FirstPage(&u8g);
@@ -24,215 +19,31 @@ void init_display(void) {
         u8g_SetDefaultForegroundColor(&u8g);
         u8g_SetFont(&u8g, u8g_font_7x13B);
     } while ( u8g_NextPage(&u8g) );
+    systimer_start(&timer, 250);
 }
 
-void printText(char *str)
-{
-    strncpy(textStr, str, CHARS_PER_ROW);
+void print_text(uint8_t row, char *str) {
+    if(row < NUMBER_OF_ROWS) {
+        strncpy(textStr[row], str, CHARS_PER_ROW);
+    }
 }
 
-char *keyStrings[KEY_NUMBER_OF_KEYS] = {
-    "KEY_NONE", "KEY8", "KEY9", "KEY0", "KEYSTART" ,
-    "KEY6",     "KEYOK", "KEYDOWN", "KEY7" ,
-    "KEYBACK",  "KEYUP", "KEY4",    "KEY5" ,
-    "KEYHOME",  "KEY1",  "KEY2",    "KEY3"
-};
-
-void print_init_menu(void)
-{
-    char buffer[64];
-    sprintf(buffer, "%ld", systick_cnt);
-    u8g_FirstPage(&u8g);
-    do {
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT, textStr);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, "1=SENSORS 2=GPIO");
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, "3=MOTOR");
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, buffer);
-
-    } while ( u8g_NextPage(&u8g) );
+void clear_display(void) {
+    int a;
+    for(a=0;a<NUMBER_OF_ROWS;a++) {
+        print_text(a, "");
+    }
 }
-
-void print_sensors_menu(void)
-{
-    char buffer[64];
-    u8g_FirstPage(&u8g);
-    do {
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT, textStr);
-        sprintf(buffer, "L %s R %s", get_sensor(SENSOR_LEFT_WIRE_INSIDE) ? "IN " : "OUT", get_sensor(SENSOR_RIGHT_WIRE_INSIDE) ? "IN " : "OUT");
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
-        sprintf(buffer, "LIFT=%d FRONT=%d", (int)get_sensor(SENSOR_LIFT), (int)get_sensor(SENSOR_FRONT));
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, buffer);
-        if(get_sensor(SENSOR_STOPBTN)) {
-            u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, "KEYSTOP");
-        } else {
-            u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, keyStrings[get_pressed_key()]);
-        }
-    } while ( u8g_NextPage(&u8g) );
-    trigger_wire_sensor();
-}
-
-void print_gpio_menu(void)
-{
-    char buffer[64];
-    u8g_FirstPage(&u8g);
-    do {
-        sprintf(buffer, "GPIO1 0x%08lX", LPC_GPIO0->FIOPIN);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*1, buffer);
-        sprintf(buffer, "GPIO1 0x%08lX", LPC_GPIO1->FIOPIN);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
-        sprintf(buffer, "GPIO2 0x%08lX", LPC_GPIO2->FIOPIN);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, buffer);
-        sprintf(buffer, "GPIO3 0x%08lX", LPC_GPIO3->FIOPIN);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*4, buffer);
-        sprintf(buffer, "GPIO4 0x%08lX", LPC_GPIO4->FIOPIN);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*5, buffer);
-    } while ( u8g_NextPage(&u8g) );
-}
-
-void print_motor_menu(void)
-{
-    char buffer[64];
-    u8g_FirstPage(&u8g);
-    do {  
-        sprintf(buffer, "1 RIGHT   %d", rightspeed);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*1, buffer);
-        sprintf(buffer, "2 LEFT    %d", leftspeed);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*2, buffer);
-        sprintf(buffer, "3 SPINDLE %d", spindlespeed);
-        u8g_DrawStr(&u8g,  0, FONT_HEIGHT*3, buffer);
-    } while ( u8g_NextPage(&u8g) );
-
-}
-
-typedef enum {
-    taskstate_init = 0,
-    taskstate_debugsensors,
-    taskstate_debuggpio,
-    taskstate_debugmotors,
-
-    taskstate_number_of_states
-}taskstate_t;
 
 void task_display(void) {
-    static taskstate_t taskstate;
-    static keys_t lastpressedkey=0;
-    keys_t currentpressedkey;
-    currentpressedkey = get_pressed_key();
-
-    switch(taskstate) {
-        case taskstate_init:
-            print_init_menu();
-            if(lastpressedkey==KEY_NONE) {
-                if(currentpressedkey==KEY1) {
-                    taskstate = taskstate_debugsensors;
-                }
-                if(currentpressedkey==KEY2) {
-                    taskstate = taskstate_debuggpio;
-                }
-                if(currentpressedkey==KEY3) {
-                    taskstate = taskstate_debugmotors;
-                }
+    int a;
+    if(systimer_is_expired(&timer)) {
+        u8g_FirstPage(&u8g);
+        do {
+            for(a=0;a<NUMBER_OF_ROWS;a++) {
+                u8g_DrawStr(&u8g,  0, FONT_HEIGHT*(a+1), textStr[a]);
             }
-            break;
-        case taskstate_debugsensors:
-            print_sensors_menu();
-            if(lastpressedkey==KEY_NONE) {
-                if(currentpressedkey==KEYBACK) {
-                    taskstate = taskstate_init;
-                }
-            }
-            break;
-        case taskstate_debuggpio:
-            print_gpio_menu();
-            if(lastpressedkey==KEY_NONE) {
-                if(currentpressedkey==KEYBACK) {
-                    taskstate = taskstate_init;
-                }
-            }
-            break;
-        case taskstate_debugmotors:
-            print_motor_menu();
-            if(lastpressedkey==KEY_NONE) {
-                if(currentpressedkey==KEYBACK) {
-                    taskstate = taskstate_init;
-                }
-                if(currentpressedkey==KEY1) {
-                    rightspeed=(rightspeed+10)%100;
-                    set_motor_speed(MOTOR_RIGHT, rightspeed);
-                }
-                if(currentpressedkey==KEY2) {
-                    leftspeed=(leftspeed+10)%100;
-                    set_motor_speed(MOTOR_LEFT, leftspeed);
-                }
-                if(currentpressedkey==KEY3) {
-                    spindlespeed=(spindlespeed+10)%100;
-                    set_motor_speed(MOTOR_SPINDLE, spindlespeed);
-                }
-                if(currentpressedkey==KEY4) {
-                    set_motor_speed(MOTOR_RIGHT, 0);
-                }
-                if(currentpressedkey==KEY5) {
-                    set_motor_speed(MOTOR_LEFT, 0);
-                }
-                if(currentpressedkey==KEY6) {
-                    set_motor_speed(MOTOR_SPINDLE, 0);
-                }
-            }
-            break;
-        default:
-            DOASSERT();
-            break;
+        } while ( u8g_NextPage(&u8g) );
+        systimer_start(&timer, 250);
     }
-    lastpressedkey = currentpressedkey;
 }
-
-/*
-
-
-#define PWM_COUNTER_MAXVALUE 1000 // 2kHz
-
-void init_hal_motor(void) {
-  
-  LPC_SC->PCONP |= (1 << 6);   // power up PWM1
-
-  // Note that these values must be updated if x_PWM_PINNO or PORTNO changes
-  LPC_PINCON->PINSEL4 &= ~0x3f; // Reset all bits of port2.0-port2.2
-  LPC_PINCON->PINSEL4 |= 0x2a;  // Set port2.0-port2.2 to alternate function 01 (PWM)
-
-  LPC_PWM1->PCR &= ~(0x0e00); // Disable pwm 1-3
-  LPC_PWM1->PR = 12; // The TC is incremented every PR+1 cycles of PCLK.
-  LPC_PWM1->MR0 = PWM_COUNTER_MAXVALUE; // 2khz
-  LPC_PWM1->MR1 = 0; // PWM1
-  LPC_PWM1->MR2 = 0; // PWM2
-  LPC_PWM1->MR3 = 0; // PWM3
-  LPC_PWM1->MCR = 0x02; // Reset Timer1 when MR0 matches timer counter
-  LPC_PWM1->LER = 0x0f; // Update MR0-MR3 on next timer1 reset. Note that this write disables update of other MR-registers if the bits were set
-
-  //LPC_PWM1->TCR = BIT(1);             // Counter Reset
-
-  LPC_PWM1->TCR = 0x09;    // PWM Timer Counter enable and PWM Enable
-
-  LPC_GPIOx(RIGHT_DIRECTION_PORTNO)->FIODIR |= ( 1 << RIGHT_DIRECTION_PINNO);
-  LPC_GPIOx(RIGHT_DIRECTION_PORTNO)->FIOSET = ( 1 << RIGHT_DIRECTION_PINNO);
-  LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIODIR |= ( 1 << LEFT_DIRECTION_PINNO);
-  LPC_GPIOx(LEFT_DIRECTION_PORTNO)->FIOSET = ( 1 << LEFT_DIRECTION_PINNO);
-  LPC_GPIOx(SPINDLE_DIRECTION_PORTNO)->FIODIR |= ( 1 << SPINDLE_DIRECTION_PINNO);
-  LPC_GPIOx(SPINDLE_DIRECTION_PORTNO)->FIOSET = ( 1 << SPINDLE_DIRECTION_PINNO);
-
-  LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIODIR |= ( 1 << RIGHT_BRAKE_PINNO);
-  LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOCLR = ( 1 << RIGHT_BRAKE_PINNO);
-  LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIODIR |= ( 1 << LEFT_BRAKE_PINNO);
-  LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOCLR = ( 1 << LEFT_BRAKE_PINNO);
-  LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIODIR |= ( 1 << SPINDLE_BRAKE_PINNO);
-  LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIOCLR = ( 1 << SPINDLE_BRAKE_PINNO);
-
-  LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIODIR |= ( 1 << RIGHT_ENABLE_PINNO);
-  LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOSET = ( 1 << RIGHT_ENABLE_PINNO);
-  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIODIR |= ( 1 << LEFT_ENABLE_PINNO);
-  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = ( 1 << LEFT_ENABLE_PINNO);
-  LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIODIR |= ( 1 << SPINDLE_ENABLE_PINNO);
-  LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOSET = ( 1 << SPINDLE_ENABLE_PINNO);
-
-}
-
-*/

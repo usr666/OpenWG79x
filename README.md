@@ -1,35 +1,61 @@
-Opensource firmware for Worx robotic mower model Landroid wg794 with circuit board db275 for now. Hopefully all WG79x-models in the future.
+# Opensource firmware for Worx Landroid wg79x robotic mowers
+For now only model wg794 with circuit board db275 is supported, hopefully all WG79x-models in the future.
 Based on the LandLord project: https://github.com/Damme/LandLord/
 
-Setup build environment:
-Use a linux machine, for example Ubuntu 20.04.
-Install gcc-arm:
-Download gcc-arm binaries for your host computer architecture from https://developer.arm.com/downloads/-/gnu-rm/10-3-2021-10
-Unpack downloaded file, for example with:
+## Current project status
+
+### What is working
+- Basic driving inside wire area
+- Reverse when hitting obstacles
+- Turn when hitting wire (very basic, needs improvement)
+- Display output and keyboard input
+- Wheel and disc motor control
+- Bump and lift sensor detection
+- Basic wire sensors
+- Stop button
+
+### What is not implemented/working
+- Tilt detection (important safety function)
+- Wire following (find charger station)
+- Battery charging
+- Disc motor control
+- Detect when mower is stuck and wheels just spin
+- Detect when mower is stuck and just moves back and forth in a small area
+- Scheduling (reading RTC)
+- Pin code
+- Storing of current state in non volatile memory
+  
+## Setup build environment
+Use a linux machine, for example Ubuntu 20.04.  
+Install gcc-arm:  
+Download gcc-arm binaries for your host computer architecture from https://developer.arm.com/downloads/-/gnu-rm/10-3-2021-10  
+Unpack downloaded file, for example with:  
 sudo tar -xvf gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2 -C /opt/
 
-Build firmware:
+## Build firmware
 Set GCCPATH variable before building, for example:
 export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
 make
 
-Load firmware in lawnmower:
-Option 1: Use USB-stick
+## Load firmware in lawnmower
+### Option 1: Use USB-stick
 Place built file openwg79x.bin on USB-stick and rename it to DB275_GRAF.bin
 Insert USB-stick in lawnmower and flash as usual firmware.
 
-Option 2: Open the lawnmower and solder connections for an ST-Link v2 programmer
+### Option 2: Open the lawnmower and solder connections for an ST-Link v2 programmer
 Connect wires according to this table (signal names are printed on bottom side of pcb):
-ST-link V2	JTAG on worx
-reset       RST
-swdio       TMS
-swim        TDO
-swclk       TCK
-3.3v        +3.3v
-GND         GND
 
-First backup existing firmware including bootloader:
+|ST-link V2 |JTAG on worx|
+|---------- |------------|
+|reset      |RST
+|swdio      |TMS
+|swim       |TDO
+|swclk      |TCK
+|3.3v       |+3.3v
+|GND        |GND
+
+First backup existing firmware including bootloader  
 openocd -f interface/stlink.cfg -c "transport select hla_swd"  -f target/lpc17xx.cfg -c "adapter speed 100" -c init -c "dump_image img.bin 0 0x100000" -c shutdown
 
-Then program new firmware file:
+Then program new firmware file  
 openocd -f interface/stlink.cfg -c "transport select hla_swd"  -f target/lpc17xx.cfg -c "adapter speed 100" -c init -c "program openwg79x.bin 0x9000" -c shutdown
