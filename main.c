@@ -4,6 +4,7 @@
 #include "hal/hal_sensors.h"
 #include "hal/hal_power.h"
 #include "hal/hal_motor.h"
+#include "hal/hal_charger.h"
 #include "system.h"
 #include "display.h"
 #include "mowercontrol.h"
@@ -14,6 +15,7 @@ int main(void) {
   init_hal_display();
   init_hal_keyboard();
   init_hal_sensors();
+  init_hal_charger();
   init_display();
   set_backlight(true);
   init_hal_motor();

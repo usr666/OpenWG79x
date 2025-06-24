@@ -4,10 +4,13 @@
 #include "hal/hal_keyboard.h"
 #include "hal/hal_sensors.h"
 #include "hal/hal_motor.h"
+#include "hal/hal_charger.h"
 #include "display.h"
 
 #include "hal/hal_mcu.h"//debug
 
+static bool charger_initiate = false;
+static bool charger_charge = false;
 static uint8_t rightspeed=0, leftspeed=0, spindlespeed=0;
 static bool menuactive;
 typedef enum {
@@ -15,6 +18,7 @@ typedef enum {
     taskstate_debugsensors,
     taskstate_debuggpio,
     taskstate_debugmotors,
+    taskstate_debugcharger,
     taskstate_inactive,
 
     taskstate_number_of_states
@@ -43,7 +47,7 @@ static void print_init_menu(void)
 
     print_text(0, "DEBUGMENU");
     print_text(1, "1=SENSORS 2=GPIO");
-    print_text(2, "3=MOTOR");
+    print_text(2, "3=MOTOR 4=CHARGER");
     sprintf(buffer, "%ld", systick_cnt);
     print_text(3, buffer);
 }
@@ -92,6 +96,18 @@ static void print_motor_menu(void)
     print_text(2, buffer);
 }
 
+static void print_charger_menu(void)
+{
+    char buffer[64];
+
+    sprintf(buffer, "Connected=%d", get_charger_connected() ? 1 : 0);
+    print_text(0, buffer);
+    sprintf(buffer, "1 Initiate=%d", charger_initiate ? 1 : 0);
+    print_text(1, buffer);
+    sprintf(buffer, "2 Charge=%d", charger_charge ? 1 : 0);
+    print_text(2, buffer);
+}
+
 void task_debugmenu(void) {
     static keys_t lastpressedkey=0;
     keys_t currentpressedkey;
@@ -112,6 +128,10 @@ void task_debugmenu(void) {
                 if(currentpressedkey==KEY3) {
                     clear_display();
                     taskstate = taskstate_debugmotors;
+                }
+                if(currentpressedkey==KEY4) {
+                    clear_display();
+                    taskstate = taskstate_debugcharger;
                 }
                 if(currentpressedkey==KEYBACK) {
                     clear_display();
@@ -168,6 +188,23 @@ void task_debugmenu(void) {
                 }
             }
             break;
+        case taskstate_debugcharger:
+            print_charger_menu();
+            set_charger_initiate(charger_initiate);
+            set_charger_active(charger_charge);
+            if(lastpressedkey==KEY_NONE) {
+                if(currentpressedkey==KEYBACK) {
+                    clear_display();
+                    taskstate = taskstate_init;
+                }
+                if(currentpressedkey==KEY1) {
+                    charger_initiate = !charger_initiate;
+                }
+                if(currentpressedkey==KEY2) {
+                    charger_charge = !charger_charge;
+                }
+            }
+            break;            
         case taskstate_inactive:
             break;
         default:

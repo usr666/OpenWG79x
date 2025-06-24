@@ -34,8 +34,13 @@ sudo tar -xvf gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2 -C /opt/
 
 ## Build firmware
 Set GCCPATH variable before building, for example:
+```
 export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
+```
+Build with make-command:
+```
 make
+```
 
 ## Load firmware in lawnmower
 ### Option 1: Use USB-stick
@@ -55,7 +60,11 @@ Connect wires according to this table (signal names are printed on bottom side o
 |GND        |GND
 
 First backup existing firmware including bootloader  
+```
 openocd -f interface/stlink.cfg -c "transport select hla_swd"  -f target/lpc17xx.cfg -c "adapter speed 100" -c init -c "dump_image img.bin 0 0x100000" -c shutdown
+```
 
 Then program new firmware file  
+```
 openocd -f interface/stlink.cfg -c "transport select hla_swd"  -f target/lpc17xx.cfg -c "adapter speed 100" -c init -c "program openwg79x.bin 0x9000" -c shutdown
+```

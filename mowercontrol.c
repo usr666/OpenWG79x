@@ -4,6 +4,7 @@
 #include "hal/hal_keyboard.h"
 #include "hal/hal_sensors.h"
 #include "hal/hal_motor.h"
+#include "hal/hal_charger.h"
 #include "display.h"
 #include "debugmenu.h"
 
@@ -13,6 +14,7 @@ typedef enum {
     mainstate_idle = 0,
     mainstate_debug,
     mainstate_mow,
+    mainstate_charging,
     mainstate_stopped,
     mainstate_number_of_states
 }mainstate_t;
@@ -76,7 +78,9 @@ void mow_state(void) {
         case mowstate_running:
             set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
-            if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
+            if(get_charger_connected()) {
+                mainstate = mainstate_charging;
+            } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
                 mowstate = mowstate_turnright;
             } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
                 mowstate = mowstate_turnleft;
@@ -180,6 +184,23 @@ void task_mowercontrol(void) {
             } else {
                 clear_display();
                 mainstate = mainstate_idle;
+            }
+            break;
+        case mainstate_charging:
+            set_motor_ramp(MOTOR_RIGHT, 100);
+            set_motor_ramp(MOTOR_LEFT, 100);
+            set_motor_ramp(MOTOR_SPINDLE, 100);
+            set_motor_speed(MOTOR_RIGHT, 0);
+            set_motor_speed(MOTOR_LEFT, 0);
+            set_motor_speed(MOTOR_SPINDLE, 0);
+            clear_display();
+            print_text(0, "Charging");
+            if(lastpressedkey==KEY_NONE && currentpressedkey==KEYBACK) {
+                mainstate = mainstate_idle;
+            }
+            if(get_charger_connected() == false) {
+                mainstate = mainstate_stopped;
+                stopreason = "Charger disconnected";
             }
             break;
         case mainstate_stopped:
