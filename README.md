@@ -18,7 +18,6 @@ Based on the LandLord project: https://github.com/Damme/LandLord/
 - Tilt detection (important safety function)
 - Wire following (find charger station)
 - Battery charging
-- Disc motor control
 - Detect when mower is stuck and wheels just spin
 - Detect when mower is stuck and just moves back and forth in a small area
 - Scheduling (reading RTC)

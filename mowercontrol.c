@@ -59,6 +59,7 @@ void init_mow(void) {
 
 #define SLOW_SPEED      20
 #define DEFAULT_SPEED   45
+#define SPINDLE_DEFAULT_SPEED 80
 #define SLOW_RAMP       10
 #define DEFAULT_RAMP    20
 #define FAST_RAMP       30
@@ -66,6 +67,15 @@ void init_mow(void) {
 #define TURN_TIME_MS    2000
 #define BACKOFF_TIME_MS 1200
 #define MAX_TIME_OUT_OF_AREA 4000
+
+void stop_all_motors(void) {
+    set_motor_ramp(MOTOR_RIGHT, IMMEDIATE_RAMP);
+    set_motor_ramp(MOTOR_LEFT, IMMEDIATE_RAMP);
+    set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
+    set_motor_speed(MOTOR_RIGHT, 0);
+    set_motor_speed(MOTOR_LEFT, 0);
+    set_motor_speed(MOTOR_SPINDLE, 0);
+}
 
 void mow_state(void) {
     static systimer_t mowtimer, timeouttimer;
@@ -85,8 +95,10 @@ void mow_state(void) {
         case mowstate_running:
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
             set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
             if(get_charger_connected()) {
                 mainstate = mainstate_charging;
             } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
@@ -154,8 +166,8 @@ void mow_state(void) {
         case mowstate_turnright:
             set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
             set_motor_ramp(MOTOR_LEFT, FAST_RAMP);
-            set_motor_speed(MOTOR_RIGHT, -DEFAULT_SPEED);
-            set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            set_motor_speed(MOTOR_RIGHT, -SLOW_SPEED);
+            set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
             systimer_start(&mowtimer, TURN_TIME_MS);
             systimer_start(&timeouttimer, TURN_TIME_MS*4);
             mowstate = mowstate_turnright_2;
@@ -216,6 +228,7 @@ void task_mowercontrol(void) {
 
     switch(mainstate) {
         case mainstate_idle:
+            stop_all_motors();
             print_init_menu();
             if(lastpressedkey==KEY_NONE) {
                 if(currentpressedkey==KEY2) {
@@ -243,12 +256,7 @@ void task_mowercontrol(void) {
             }
             break;
         case mainstate_charging:
-            set_motor_ramp(MOTOR_RIGHT, IMMEDIATE_RAMP);
-            set_motor_ramp(MOTOR_LEFT, IMMEDIATE_RAMP);
-            set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
-            set_motor_speed(MOTOR_RIGHT, 0);
-            set_motor_speed(MOTOR_LEFT, 0);
-            set_motor_speed(MOTOR_SPINDLE, 0);
+            stop_all_motors();
             clear_display();
             print_text(0, "Charging");
             if(lastpressedkey==KEY_NONE && currentpressedkey==KEYBACK) {
@@ -260,12 +268,7 @@ void task_mowercontrol(void) {
             }
             break;
         case mainstate_stopped:
-            set_motor_ramp(MOTOR_RIGHT, IMMEDIATE_RAMP);
-            set_motor_ramp(MOTOR_LEFT, IMMEDIATE_RAMP);
-            set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
-            set_motor_speed(MOTOR_RIGHT, 0);
-            set_motor_speed(MOTOR_LEFT, 0);
-            set_motor_speed(MOTOR_SPINDLE, 0);
+            stop_all_motors();
             clear_display();
             print_text(0, "Stopped");
             print_text(1, stopreason);
