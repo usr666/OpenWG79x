@@ -49,6 +49,7 @@ typedef enum {
     mowstate_out_of_area_2
 }mowstate_t;
 static mowstate_t mowstate;
+static bool turnleft;
 
 void init_mow(void) {
     mowstate = mowstate_startmow;
@@ -74,9 +75,26 @@ void stop_all_motors(void) {
     set_motor_speed(MOTOR_SPINDLE, 0);
 }
 
+void checksensors(void) {
+    if(get_charger_connected()) {
+        mainstate = mainstate_charging;
+    } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
+        turnleft = false;
+        mowstate = mowstate_turn;
+    } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
+        turnleft = true;
+        mowstate = mowstate_turn;
+    } else if(get_sensor(SENSOR_LIFT)) {
+        set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
+        set_motor_speed(MOTOR_SPINDLE, 0);
+        mowstate = mowstate_backoff;
+    } else if(get_sensor(SENSOR_FRONT)) {
+        mowstate = mowstate_backoff;
+    }
+}
+
 void mow_state(void) {
     static systimer_t mowtimer, timeouttimer;
-    static bool turnleft;
     if(get_sensor(SENSOR_STOPBTN)) {
         mainstate = mainstate_stopped;
         stopreason="Stopbtn pressed";
@@ -97,21 +115,7 @@ void mow_state(void) {
             set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
-            if(get_charger_connected()) {
-                mainstate = mainstate_charging;
-            } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
-                turnleft = false;
-                mowstate = mowstate_turn;
-            } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
-                turnleft = true;
-                mowstate = mowstate_turn;
-            } else if(get_sensor(SENSOR_LIFT)) {
-                set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
-                set_motor_speed(MOTOR_SPINDLE, 0);
-                mowstate = mowstate_backoff;
-            } else if(get_sensor(SENSOR_FRONT)) {
-                mowstate = mowstate_backoff;
-            }
+            checksensors();
             break;
         case mowstate_out_of_area:
             set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
@@ -166,6 +170,7 @@ void mow_state(void) {
             }
             break;
         case mowstate_turn_3:
+            checksensors();
             if(systimer_is_expired(&mowtimer)) {
                 if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false && get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
                     mowstate = mowstate_out_of_area;
