@@ -20,9 +20,41 @@ typedef enum {
 }mainstate_t;
 static mainstate_t mainstate;
 
+typedef enum {
+    mowstate_startmow = 0,
+    mowstate_running,
+    mowstate_turn,
+    mowstate_turn_2,
+    mowstate_turn_3,
+    mowstate_backoff,
+    mowstate_backoff_2,
+    mowstate_backoff_3,
+    mowstate_out_of_area,
+    mowstate_out_of_area_2,
+    mowstate_wire_found,
+    mowstate_wire_found_2,
+    mowstate_refind_wire
+}mowstate_t;
+static mowstate_t mowstate;
+static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
+static bool findhome; // true if we are looking for home position
+
+#define SLOW_SPEED      20
+#define DEFAULT_SPEED   45
+#define SPINDLE_DEFAULT_SPEED 80
+#define SLOW_RAMP       10
+#define DEFAULT_RAMP    20
+#define FAST_RAMP       30
+#define IMMEDIATE_RAMP 100
+#define TURN_TIME_MS    2000
+#define BACKOFF_TIME_MS 1200
+#define MAX_TIME_OUT_OF_AREA 4000
+#define MAX_TIME_REFIND_WIRE 20000
+
 void init_mowercontrol(void) {
     mainstate=mainstate_idle;
     stopreason="power on";
+    findhome = false;
 }
 
 static void print_init_menu(void)
@@ -36,36 +68,6 @@ static void print_init_menu(void)
     print_text(3, buffer);
 }
 
-typedef enum {
-    mowstate_startmow = 0,
-    mowstate_running,
-    mowstate_turn,
-    mowstate_turn_2,
-    mowstate_turn_3,
-    mowstate_backoff,
-    mowstate_backoff_2,
-    mowstate_backoff_3,
-    mowstate_out_of_area,
-    mowstate_out_of_area_2
-}mowstate_t;
-static mowstate_t mowstate;
-static bool turnleft;
-
-void init_mow(void) {
-    mowstate = mowstate_startmow;
-}
-
-#define SLOW_SPEED      20
-#define DEFAULT_SPEED   45
-#define SPINDLE_DEFAULT_SPEED 80
-#define SLOW_RAMP       10
-#define DEFAULT_RAMP    20
-#define FAST_RAMP       30
-#define IMMEDIATE_RAMP 100
-#define TURN_TIME_MS    2000
-#define BACKOFF_TIME_MS 1200
-#define MAX_TIME_OUT_OF_AREA 4000
-
 void stop_all_motors(void) {
     set_motor_ramp(MOTOR_RIGHT, IMMEDIATE_RAMP);
     set_motor_ramp(MOTOR_LEFT, IMMEDIATE_RAMP);
@@ -75,24 +77,38 @@ void stop_all_motors(void) {
     set_motor_speed(MOTOR_SPINDLE, 0);
 }
 
-void checksensors(void) {
+/* Check sensors and update mainstate, mowstate and turnleft if needed */
+void checksensors(bool wirefound) {
     if(get_charger_connected()) {
         mainstate = mainstate_charging;
-    } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
-        turnleft = false;
-        mowstate = mowstate_turn;
-    } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
-        turnleft = true;
-        mowstate = mowstate_turn;
     } else if(get_sensor(SENSOR_LIFT)) {
         set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
         set_motor_speed(MOTOR_SPINDLE, 0);
         mowstate = mowstate_backoff;
     } else if(get_sensor(SENSOR_FRONT)) {
         mowstate = mowstate_backoff;
+    } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
+        if(findhome) {
+            if(!wirefound) {
+                mowstate = mowstate_wire_found;
+            }
+        } else {
+            turnleft = false;
+            mowstate = mowstate_turn;
+        }
+    } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
+        if(findhome) {
+            if(!wirefound) {
+                mowstate = mowstate_wire_found;
+            }
+        } else {
+            turnleft = true;
+            mowstate = mowstate_turn;
+        }
     }
 }
 
+/* Mow control state machine. Active when mainstate is mainstate_mow */
 void mow_state(void) {
     static systimer_t mowtimer, timeouttimer;
     if(get_sensor(SENSOR_STOPBTN)) {
@@ -115,8 +131,20 @@ void mow_state(void) {
             set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
-            checksensors();
+            checksensors(false);
             break;
+        case mowstate_refind_wire:
+            if(systimer_is_expired(&timeouttimer)) {
+                mowstate = mowstate_running;
+            }
+            set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
+            set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED-15);
+            set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
+            checksensors(false);
+            break;            
         case mowstate_out_of_area:
             set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
             set_motor_ramp(MOTOR_LEFT, FAST_RAMP);
@@ -170,12 +198,17 @@ void mow_state(void) {
             }
             break;
         case mowstate_turn_3:
-            checksensors();
+            checksensors(false);
             if(systimer_is_expired(&mowtimer)) {
                 if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false && get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
                     mowstate = mowstate_out_of_area;
                 } else {
-                    mowstate = mowstate_running;
+                    if(findhome) {
+                        mowstate = mowstate_refind_wire;
+                        systimer_start(&timeouttimer, MAX_TIME_REFIND_WIRE);
+                    } else {
+                        mowstate = mowstate_running;
+                    }
                 }
             }
             break;
@@ -202,29 +235,68 @@ void mow_state(void) {
                 mowstate = mowstate_turn;
             }
             break;
+        case mowstate_wire_found:
+            mowstate = mowstate_wire_found_2;
+            systimer_start(&timeouttimer, MAX_TIME_OUT_OF_AREA);
+            break;
+        case mowstate_wire_found_2:
+            set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
+            set_motor_ramp(MOTOR_LEFT, FAST_RAMP);
+            set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
+            set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
+            checksensors(true);
+            if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
+                // turn left
+                set_motor_speed(MOTOR_LEFT, -SLOW_SPEED);
+                if(systimer_is_expired(&timeouttimer)) {
+                    mowstate = mowstate_out_of_area;
+                }
+            } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == true) {
+                // turn right
+                set_motor_speed(MOTOR_RIGHT, -SLOW_SPEED);
+                if(systimer_is_expired(&timeouttimer)) {
+                    mowstate = mowstate_running;
+                }
+            } else {
+                systimer_start(&timeouttimer, MAX_TIME_OUT_OF_AREA);
+            }
+
+            break;
     }
 }
 
 void task_mowercontrol(void) {
     static keys_t lastpressedkey=0;
+    char tmpstr[20];
     keys_t currentpressedkey;
     currentpressedkey = get_pressed_key();
+
+    sprintf(tmpstr, "State %d,%d", mainstate, mowstate);
+    print_text(3, tmpstr);
 
     switch(mainstate) {
         case mainstate_idle:
             stop_all_motors();
             print_init_menu();
-            if(lastpressedkey==KEY_NONE) {
+            if(lastpressedkey == KEY_NONE) {
                 if(currentpressedkey==KEY2) {
                     clear_display();
                     init_debugmenu();
                     mainstate = mainstate_debug;
                 }
-                if(currentpressedkey==KEYSTART) {
+                if(currentpressedkey == KEYSTART) {
                     clear_display();
                     print_text(0, "Mowing...");
+                    findhome = false;
                     mainstate = mainstate_mow;
-                    init_mow();
+                    mowstate = mowstate_startmow;
+                }
+                if(currentpressedkey == KEYHOME) {
+                    clear_display();
+                    print_text(0, "Finding home...");
+                    findhome = true;
+                    mainstate = mainstate_mow;
+                    mowstate = mowstate_startmow;
                 }
             }
             break;
