@@ -48,6 +48,7 @@ static bool findhome; // true if we are looking for home position
 #define IMMEDIATE_RAMP 100
 #define TURN_TIME_MS    2000
 #define BACKOFF_TIME_MS 1200
+#define WAIT_FOR_CHARGE_DETECT 3000
 #define MAX_TIME_OUT_OF_AREA 4000
 #define MAX_TIME_REFIND_WIRE 20000
 
@@ -217,15 +218,21 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_LEFT, IMMEDIATE_RAMP);
             set_motor_speed(MOTOR_RIGHT, 0);
             set_motor_speed(MOTOR_LEFT, 0);
+            systimer_start(&mowtimer, WAIT_FOR_CHARGE_DETECT);
             mowstate = mowstate_backoff_2;
             break;
         case mowstate_backoff_2:
-            set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
-            set_motor_ramp(MOTOR_LEFT, FAST_RAMP);
-            set_motor_speed(MOTOR_RIGHT, -SLOW_SPEED);
-            set_motor_speed(MOTOR_LEFT, -SLOW_SPEED);
-            systimer_start(&mowtimer, BACKOFF_TIME_MS);
-            mowstate = mowstate_backoff_3;
+            if(get_charger_connected()) {
+                mainstate = mainstate_charging;
+            }
+            if(systimer_is_expired(&mowtimer)) { // Wait to see if charger is connected
+                set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
+                set_motor_ramp(MOTOR_LEFT, FAST_RAMP);
+                set_motor_speed(MOTOR_RIGHT, -SLOW_SPEED);
+                set_motor_speed(MOTOR_LEFT, -SLOW_SPEED);
+                systimer_start(&mowtimer, BACKOFF_TIME_MS);
+                mowstate = mowstate_backoff_3;
+            }
             break;
         case mowstate_backoff_3:
             if(systimer_is_expired(&mowtimer)) {
