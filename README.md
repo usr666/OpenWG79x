@@ -3,6 +3,8 @@ For now only model wg794 with circuit board db275 is supported, hopefully all WG
 Based on the LandLord project: https://github.com/Damme/LandLord/
 
 ## Current project status
+Use at your own risk! Only use it in a safe area. Always keep the mower under strict observation and be prepared to press the stop button or lift mower if it does something unexpected.
+This software does not fulfil any safety standards.
 
 ### What is working
 - Basic driving inside wire area
