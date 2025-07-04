@@ -25,6 +25,8 @@ typedef enum {
 }taskstate_t;
 static taskstate_t taskstate;
 
+static keys_t lastpressedkey;
+
 bool is_debugmenu_active(void){
     return menuactive;
 }
@@ -32,6 +34,7 @@ bool is_debugmenu_active(void){
 void init_debugmenu(void) {
     menuactive = true;
     taskstate = taskstate_init;
+    lastpressedkey = get_pressed_key();
 }
 
 char *keyStrings[KEY_NUMBER_OF_KEYS] = {
@@ -109,7 +112,6 @@ static void print_charger_menu(void)
 }
 
 void task_debugmenu(void) {
-    static keys_t lastpressedkey=0;
     keys_t currentpressedkey;
     currentpressedkey = get_pressed_key();
 

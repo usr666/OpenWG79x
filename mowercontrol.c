@@ -46,11 +46,12 @@ static bool findhome; // true if we are looking for home position
 #define DEFAULT_RAMP    20
 #define FAST_RAMP       30
 #define IMMEDIATE_RAMP 100
-#define TURN_TIME_MS    2000
+#define TURN_TIME_MS    2500
+#define TURN_TIMEOUT_MS 10000
 #define BACKOFF_TIME_MS 1200
 #define WAIT_FOR_CHARGE_DETECT 3000
 #define MAX_TIME_OUT_OF_AREA 4000
-#define MAX_TIME_REFIND_WIRE 20000
+#define MAX_TIME_REFIND_WIRE 16000
 
 void init_mowercontrol(void) {
     mainstate=mainstate_idle;
@@ -174,7 +175,7 @@ void mow_state(void) {
                 set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
             }
             systimer_start(&mowtimer, TURN_TIME_MS);
-            systimer_start(&timeouttimer, TURN_TIME_MS*4);
+            systimer_start(&timeouttimer, TURN_TIMEOUT_MS);
             mowstate = mowstate_turn_2;
             break;
         case mowstate_turn_2:

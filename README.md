@@ -8,6 +8,8 @@ Based on the LandLord project: https://github.com/Damme/LandLord/
 - Basic driving inside wire area
 - Reverse when hitting obstacles
 - Turn when hitting wire (very basic, needs improvement)
+- Wire following and detection of charging station
+- Battery charging
 - Display output and keyboard input
 - Wheel and disc motor control
 - Bump and lift sensor detection
@@ -16,10 +18,12 @@ Based on the LandLord project: https://github.com/Damme/LandLord/
 
 ### What is not implemented/working
 - Tilt detection (important safety function)
-- Wire following (find charger station)
-- Battery charging
+- Stop battery charging when battery full
+- Detect when battery is low and needs recharging
 - Detect when mower is stuck and wheels just spin
 - Detect when mower is stuck and just moves back and forth in a small area
+- Detect when motors are blocked and wheel/disc does not move
+- Detect motor overcurrent?
 - Scheduling (reading RTC)
 - Pin code
 - Storing of current state in non volatile memory
