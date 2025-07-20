@@ -9,6 +9,7 @@
 #include "debugmenu.h"
 
 static char *stopreason;
+static bool mowing = false;
 
 typedef enum {
     mainstate_idle = 0,
@@ -33,7 +34,9 @@ typedef enum {
     mowstate_out_of_area_2,
     mowstate_wire_found,
     mowstate_wire_found_2,
-    mowstate_refind_wire
+    mowstate_refind_wire,
+    mowstate_start_after_charge,
+    mowstate_start_after_charge_2
 }mowstate_t;
 static mowstate_t mowstate;
 static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
@@ -52,11 +55,14 @@ static bool findhome; // true if we are looking for home position
 #define WAIT_FOR_CHARGE_DETECT 3000
 #define MAX_TIME_OUT_OF_AREA 4000
 #define MAX_TIME_REFIND_WIRE 16000
+#define REVERSE_AFTER_CHARGE_TIME_MS 3000
+#define GO_TO_CHARGE_STATION_SOC 50
 
 void init_mowercontrol(void) {
     mainstate=mainstate_idle;
     stopreason="power on";
     findhome = false;
+    mowing = false;
 }
 
 static void print_init_menu(void)
@@ -124,6 +130,7 @@ void mow_state(void) {
                 stopreason = "Out of area";
             } else {
                 mowstate = mowstate_running;
+                mowing = true;
             }
             break;
         case mowstate_running:
@@ -134,6 +141,9 @@ void mow_state(void) {
             set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
             checksensors(false);
+            if(get_battery_soc() < GO_TO_CHARGE_STATION_SOC) {
+                findhome = true;
+            }
             break;
         case mowstate_refind_wire:
             if(systimer_is_expired(&timeouttimer)) {
@@ -212,6 +222,20 @@ void mow_state(void) {
                         mowstate = mowstate_running;
                     }
                 }
+            }
+            break;
+        case mowstate_start_after_charge:
+            set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            set_motor_speed(MOTOR_RIGHT, -SLOW_SPEED);
+            set_motor_speed(MOTOR_LEFT, -SLOW_SPEED);
+            systimer_start(&mowtimer, REVERSE_AFTER_CHARGE_TIME_MS);
+            mowstate = mowstate_start_after_charge_2;
+            break;
+        case mowstate_start_after_charge_2:
+            if(systimer_is_expired(&mowtimer)) {
+                turnleft = true;
+                mowstate = mowstate_turn;
             }
             break;
         case mowstate_backoff:
@@ -330,6 +354,10 @@ void task_mowercontrol(void) {
                 mainstate = mainstate_stopped;
                 stopreason = "Charger disconnected";
             }
+            if(mowing && get_charge_complete()) {
+                mainstate = mainstate_mow;
+                mowstate = mowstate_start_after_charge;
+            }
             break;
         case mainstate_stopped:
             stop_all_motors();
@@ -340,6 +368,7 @@ void task_mowercontrol(void) {
             if(lastpressedkey==KEY_NONE && currentpressedkey==KEYBACK) {
                 mainstate = mainstate_idle;
             }
+            mowing = false;
             break;
         default:
             DOASSERT();

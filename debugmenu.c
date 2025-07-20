@@ -5,6 +5,7 @@
 #include "hal/hal_sensors.h"
 #include "hal/hal_motor.h"
 #include "hal/hal_charger.h"
+#include "hal/hal_adc.h"
 #include "display.h"
 
 #include "hal/hal_mcu.h"//debug
@@ -19,6 +20,7 @@ typedef enum {
     taskstate_debuggpio,
     taskstate_debugmotors,
     taskstate_debugcharger,
+    taskstate_debugadc,
     taskstate_inactive,
 
     taskstate_number_of_states
@@ -51,8 +53,9 @@ static void print_init_menu(void)
     print_text(0, "DEBUGMENU");
     print_text(1, "1=SENSORS 2=GPIO");
     print_text(2, "3=MOTOR 4=CHARGER");
+    print_text(3, "5=ADC");
     sprintf(buffer, "%ld", systick_cnt);
-    print_text(3, buffer);
+    print_text(4, buffer);
 }
 
 static void print_sensors_menu(void)
@@ -85,6 +88,16 @@ static void print_gpio_menu(void)
     print_text(3, buffer);
     sprintf(buffer, "GPIO4 0x%08lX", LPC_GPIO4->FIOPIN);
     print_text(4, buffer);
+}
+
+static void print_adc_menu(void)
+{
+    char buffer[64];
+    int i;
+    for(i=0;i<4;i++) {
+        sprintf(buffer, "A%d 0x%03lX A%d 0x%03lX", i*2, hal_adc_get_value(i*2), i*2+1, hal_adc_get_value(i*2+1));
+        print_text(i, buffer);
+    }
 }
 
 static void print_motor_menu(void)
@@ -135,6 +148,10 @@ void task_debugmenu(void) {
                     clear_display();
                     taskstate = taskstate_debugcharger;
                 }
+                if(currentpressedkey==KEY5) {
+                    clear_display();
+                    taskstate = taskstate_debugadc;
+                }
                 if(currentpressedkey==KEYBACK) {
                     clear_display();
                     menuactive=false;
@@ -153,6 +170,15 @@ void task_debugmenu(void) {
             break;
         case taskstate_debuggpio:
             print_gpio_menu();
+            if(lastpressedkey==KEY_NONE) {
+                if(currentpressedkey==KEYBACK) {
+                    clear_display();
+                    taskstate = taskstate_init;
+                }
+            }
+            break;
+        case taskstate_debugadc:
+            print_adc_menu();
             if(lastpressedkey==KEY_NONE) {
                 if(currentpressedkey==KEYBACK) {
                     clear_display();

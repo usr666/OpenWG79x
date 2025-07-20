@@ -15,6 +15,8 @@
 #define RIGHT_SENSOR_FALLING_EDGE_BITVAL 0x400
 #define LEFT_SENSOR_FALLING_EDGE_BITVAL 0x100
 
+static bool near_wire = false, try_near_wire = false;
+static systimer_t try_near_wire_timer;
 static bool right_wire_sensor = false, left_wire_sensor = false;
 static bool right_firstedge_detected = false, left_firstedge_detected = false;
 static systimer_t timer;
@@ -36,11 +38,17 @@ void init_hal_sensors(void) {
     // Let triggersensor setup and start interrupt
     NVIC_DisableIRQ(EINT3_IRQn);
     systimer_start(&timer, 30);
+    systimer_start(&try_near_wire_timer, 1000);
+    near_wire = false;
 }
 
 void task_sensors(void)
 {
     if(systimer_is_expired(&timer)) {
+        if(!near_wire && systimer_is_expired(&try_near_wire_timer)) {
+            try_near_wire = true;
+            LPC_GPIOx(0)->FIOSET = ( 1 << 21 );
+        }
         trigger_wire_sensor();
         systimer_start(&timer, 30);
     }
@@ -85,8 +93,15 @@ void trigger_wire_sensor(void)
 {
     // Are interrupts still active? This means no interrupts has been triggered since last call to this function. Probably no signal detected.
     if(NVIC_IsIRQEnabled(EINT3_IRQn)) {
-        right_wire_sensor = false;
-        left_wire_sensor = false;
+        if(try_near_wire) {
+            try_near_wire = false;
+            LPC_GPIOx(0)->FIOCLR = ( 1 << 21 );
+            systimer_start(&try_near_wire_timer, 1000);
+        } else {
+            right_wire_sensor = false;
+            left_wire_sensor = false;
+        }
+        near_wire = false;
         return;
     }
     right_firstedge_detected = false;
@@ -157,6 +172,9 @@ void __attribute__ ((interrupt)) EINT3_IRQHandler(void)
             NVIC_DisableIRQ(EINT3_IRQn);
             LPC_GPIOINT->IO0IntEnR = 0;
             LPC_GPIOINT->IO0IntEnF = 0;
+            if(try_near_wire) {
+                near_wire = true;
+            }
         }
     }
 }
