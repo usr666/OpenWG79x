@@ -15,6 +15,7 @@ typedef enum {
     mainstate_idle = 0,
     mainstate_debug,
     mainstate_mow,
+    mainstate_startcharge,
     mainstate_charging,
     mainstate_stopped,
     mainstate_number_of_states
@@ -43,8 +44,9 @@ static bool turnleft; // Indicates turn direction if turning. true = turn left, 
 static bool findhome; // true if we are looking for home position
 
 #define SLOW_SPEED      20
+#define INTERMEDIATE_SPEED 30
 #define DEFAULT_SPEED   45
-#define SPINDLE_DEFAULT_SPEED 80
+#define SPINDLE_DEFAULT_SPEED 100
 #define SLOW_RAMP       10
 #define DEFAULT_RAMP    20
 #define FAST_RAMP       30
@@ -52,24 +54,25 @@ static bool findhome; // true if we are looking for home position
 #define TURN_TIME_MS    2500
 #define TURN_TIMEOUT_MS 10000
 #define BACKOFF_TIME_MS 1200
-#define WAIT_FOR_CHARGE_DETECT 3000
+#define WAIT_FOR_CHARGE_DETECT 4000
 #define MAX_TIME_OUT_OF_AREA 4000
 #define MAX_TIME_REFIND_WIRE 16000
-#define REVERSE_AFTER_CHARGE_TIME_MS 3000
+#define REVERSE_AFTER_CHARGE_TIME_MS 5000
 #define GO_TO_CHARGE_STATION_SOC 50
 
 void init_mowercontrol(void) {
     mainstate=mainstate_idle;
     stopreason="power on";
     findhome = false;
-    mowing = false;
 }
 
 static void print_init_menu(void)
 {
     char buffer[64];
-
-    print_text(0, "OpenWG79x");
+    uint32_t batteryvoltage;
+    batteryvoltage = get_battery_voltage();
+    sprintf(buffer, "%2ld.%1ldV %2d%%", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc());
+    print_text(0, buffer);
     print_text(1, "Press START to mow");
     print_text(2, "Press 2 to debug");
     sprintf(buffer, "%ld", systick_cnt);
@@ -88,7 +91,7 @@ void stop_all_motors(void) {
 /* Check sensors and update mainstate, mowstate and turnleft if needed */
 void checksensors(bool wirefound) {
     if(get_charger_connected()) {
-        mainstate = mainstate_charging;
+        mainstate = mainstate_startcharge;
     } else if(get_sensor(SENSOR_LIFT)) {
         set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
         set_motor_speed(MOTOR_SPINDLE, 0);
@@ -119,6 +122,20 @@ void checksensors(bool wirefound) {
 /* Mow control state machine. Active when mainstate is mainstate_mow */
 void mow_state(void) {
     static systimer_t mowtimer, timeouttimer;
+    char tmpstr[20];
+    uint32_t batteryvoltage;
+    batteryvoltage = get_battery_voltage();
+
+    clear_display();
+    if(findhome) {
+        print_text(0, "Finding home...");
+    } else {
+        print_text(0, "Mowing...");
+    }
+
+    sprintf(tmpstr, "%2ld.%1ldV %2d%%", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc());
+    print_text(1, tmpstr);
+
     if(get_sensor(SENSOR_STOPBTN)) {
         mainstate = mainstate_stopped;
         stopreason="Stopbtn pressed";
@@ -248,7 +265,7 @@ void mow_state(void) {
             break;
         case mowstate_backoff_2:
             if(get_charger_connected()) {
-                mainstate = mainstate_charging;
+                mainstate = mainstate_startcharge;
             }
             if(systimer_is_expired(&mowtimer)) { // Wait to see if charger is connected
                 set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
@@ -299,7 +316,10 @@ void mow_state(void) {
 
 void task_mowercontrol(void) {
     static keys_t lastpressedkey=0;
+    static uint32_t chargecurrent;
+    static systimer_t chargedata_timer;
     char tmpstr[20];
+    uint32_t batteryvoltage;
     keys_t currentpressedkey;
     currentpressedkey = get_pressed_key();
 
@@ -308,8 +328,12 @@ void task_mowercontrol(void) {
 
     switch(mainstate) {
         case mainstate_idle:
+            mowing = false;
             stop_all_motors();
             print_init_menu();
+            if(get_charger_connected()) {
+                mainstate = mainstate_startcharge;
+            }
             if(lastpressedkey == KEY_NONE) {
                 if(currentpressedkey==KEY2) {
                     clear_display();
@@ -317,15 +341,11 @@ void task_mowercontrol(void) {
                     mainstate = mainstate_debug;
                 }
                 if(currentpressedkey == KEYSTART) {
-                    clear_display();
-                    print_text(0, "Mowing...");
                     findhome = false;
                     mainstate = mainstate_mow;
                     mowstate = mowstate_startmow;
                 }
                 if(currentpressedkey == KEYHOME) {
-                    clear_display();
-                    print_text(0, "Finding home...");
                     findhome = true;
                     mainstate = mainstate_mow;
                     mowstate = mowstate_startmow;
@@ -343,20 +363,47 @@ void task_mowercontrol(void) {
                 mainstate = mainstate_idle;
             }
             break;
+        case mainstate_startcharge:
+            stop_all_motors();
+            set_charger_initiate(true);
+            mainstate = mainstate_charging;
+            chargecurrent = get_charge_current()*100;
+            systimer_start(&chargedata_timer, 0);
+            break;
         case mainstate_charging:
             stop_all_motors();
-            clear_display();
-            print_text(0, "Charging");
+            // Simple average filter for charge current
+            chargecurrent = (chargecurrent * 99) / 100;
+            chargecurrent += get_charge_current();
+            if(systimer_is_expired(&chargedata_timer)) {
+                clear_display();
+                print_text(0, "Charging");
+                batteryvoltage = get_battery_voltage();
+                sprintf(tmpstr, "%2ld.%1ldV %2d%%", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc());
+                print_text(1, tmpstr);
+                sprintf(tmpstr, "%4ldmA", chargecurrent/100);
+                print_text(2, tmpstr);
+                systimer_start(&chargedata_timer, 1000);
+            }
             if(lastpressedkey==KEY_NONE && currentpressedkey==KEYBACK) {
+                set_charger_initiate(false);
                 mainstate = mainstate_idle;
             }
             if(get_charger_connected() == false) {
+                set_charger_initiate(false);
                 mainstate = mainstate_stopped;
                 stopreason = "Charger disconnected";
             }
-            if(mowing && get_charge_complete()) {
-                mainstate = mainstate_mow;
-                mowstate = mowstate_start_after_charge;
+            if(get_charge_complete()) {
+                set_charger_initiate(false);
+                if(mowing) {
+                    mainstate = mainstate_mow;
+                    findhome = false;
+                    mowstate = mowstate_start_after_charge;
+                } else {
+                    mainstate = mainstate_stopped;
+                    stopreason = "Charge complete";
+                }
             }
             break;
         case mainstate_stopped:

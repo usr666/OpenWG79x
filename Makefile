@@ -47,7 +47,9 @@ CFLAGS:=$(COMMON_FLAGS) -std=gnu99 -ggdb
 GC:=-Wl,--gc-sections
 MAP:=-Wl,-Map=$(MAPNAME)
 LFLAGS:=$(COMMON_FLAGS) $(GC) $(MAP)
+#nano.specs => no floating point numbers in printf
 LDLIBS:=--specs=nano.specs -lc -lc -lnosys -L$(LDSCRIPTDIR) -T $(LDSCRIPT)
+#LDLIBS:=-lc -lc -lnosys -L$(LDSCRIPTDIR) -T $(LDSCRIPT)
 
 # Additional Suffixes
 .SUFFIXES: .elf .hex .dis .bin

@@ -32,6 +32,7 @@ int main(void) {
   for (;;){
     task_hal_adc();
     task_sensors();
+    task_hal_charger();
     task_display();
     task_keyboard();
     task_motor();
