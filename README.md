@@ -20,8 +20,6 @@ This software does not fulfil any safety standards.
 
 ### What is not implemented/working
 - Tilt detection (important safety function)
-- Stop battery charging when battery full
-- Detect when battery is low and needs recharging
 - Detect when mower is stuck and wheels just spin
 - Detect when mower is stuck and just moves back and forth in a small area
 - Detect when motors are blocked and wheel/disc does not move
@@ -49,8 +47,8 @@ make
 
 ## Load firmware in lawnmower
 ### Option 1: Use USB-stick
-Place built file openwg79x.bin on USB-stick and rename it to DB275_GRAF.bin
-Insert USB-stick in lawnmower and flash as usual firmware.
+Place built file DB275_GRAF.bin on an empty FAT32-formatted USB drive
+Insert USB-stick in lawnmower, press and hold power-on button for 10 seconds.
 
 ### Option 2: Open the lawnmower and solder connections for an ST-Link v2 programmer
 Connect wires according to this table (signal names are printed on bottom side of pcb):

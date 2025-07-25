@@ -1,8 +1,7 @@
 # Set GCCPATH variable before building, for example:
 # export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
 
-#TARGETNAME:=$(firstword $(basename $(wildcard *.c)))
-TARGETNAME:=openwg79x
+TARGETNAME:=DB275_GRAF
 SYSINC:=common
 U8GPATH:=u8g
 LDSCRIPTDIR:=$(SYSINC)
