@@ -13,6 +13,7 @@
 static bool charger_initiate = false;
 static bool charger_charge = false;
 static uint8_t rightspeed=0, leftspeed=0, spindlespeed=0;
+static bool wiresensor_mode_near = true;
 static bool menuactive;
 typedef enum {
     taskstate_init = 0,
@@ -21,6 +22,7 @@ typedef enum {
     taskstate_debugmotors,
     taskstate_debugcharger,
     taskstate_debugadc,
+    taskstate_debugwiresensor,
     taskstate_inactive,
 
     taskstate_number_of_states
@@ -53,7 +55,7 @@ static void print_init_menu(void)
     print_text(0, "DEBUGMENU");
     print_text(1, "1=SENSORS 2=GPIO");
     print_text(2, "3=MOTOR 4=CHARGER");
-    print_text(3, "5=ADC");
+    print_text(3, "5=ADC 6=WIRESENS");
     sprintf(buffer, "%ld", systick_cnt);
     print_text(4, buffer);
 }
@@ -64,15 +66,15 @@ static void print_sensors_menu(void)
 
     sprintf(buffer, "L %s R %s", get_sensor(SENSOR_LEFT_WIRE_INSIDE) ? "IN " : "OUT", get_sensor(SENSOR_RIGHT_WIRE_INSIDE) ? "IN " : "OUT");
     print_text(0, buffer);
-    sprintf(buffer, "LIFT=%d FRONT=%d", (int)get_sensor(SENSOR_LIFT), (int)get_sensor(SENSOR_FRONT));
+    sprintf(buffer, "WIRE %s", get_sensor(SENSOR_NEAR_WIRE) ? "NEAR" : "FAR");
     print_text(1, buffer);
+    sprintf(buffer, "LIFT=%d FRONT=%d", (int)get_sensor(SENSOR_LIFT), (int)get_sensor(SENSOR_FRONT));
+    print_text(2, buffer);
     if(get_sensor(SENSOR_STOPBTN)) {
-        print_text(2, "KEYSTOP");
+        print_text(3, "KEYSTOP");
     } else {
-        print_text(2, keyStrings[get_pressed_key()]);
+        print_text(3, keyStrings[get_pressed_key()]);
     }
-
-    trigger_wire_sensor();
 }
 
 static void print_gpio_menu(void)
@@ -124,6 +126,26 @@ static void print_charger_menu(void)
     print_text(2, buffer);
 }
 
+#define RT(x) ((x > 0xfffffUL) ? (0xfffff) : x)
+void print_wiresensor_menu(void)
+{
+    char buffer[64];
+    sprintf(buffer, "near=%d 2=N 3=T", wiresensor_mode_near ? 1 : 0);
+    print_text(0, buffer);
+    if(debug_wire_idx >= NUMBER_OF_DEBUG_WIRE_TIMES) {
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(debug_wire_times[0]), debug_wire_values[0], RT(debug_wire_times[1]), debug_wire_values[1]);
+        print_text(1, buffer);
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(debug_wire_times[2]), debug_wire_values[2], RT(debug_wire_times[3]), debug_wire_values[3]);
+        print_text(2, buffer);
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(debug_wire_times[4]), debug_wire_values[4], RT(debug_wire_times[5]), debug_wire_values[5]);
+        print_text(3, buffer);
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(debug_wire_times[6]), debug_wire_values[6], RT(debug_wire_times[7]), debug_wire_values[7]);
+        print_text(4, buffer);
+        sprintf(buffer, "%05lx %02x %05lx %02x", RT(debug_wire_times[8]), debug_wire_values[8], RT(debug_wire_times[9]), debug_wire_values[9]);
+        print_text(5, buffer);
+    }
+}
+
 void task_debugmenu(void) {
     keys_t currentpressedkey;
     currentpressedkey = get_pressed_key();
@@ -151,6 +173,12 @@ void task_debugmenu(void) {
                 if(currentpressedkey==KEY5) {
                     clear_display();
                     taskstate = taskstate_debugadc;
+                }
+                if(currentpressedkey==KEY6) {
+                    clear_display();
+                    taskstate = taskstate_debugwiresensor;
+                    wire_sensor_debug(true, wiresensor_mode_near, true);
+                    set_text_size(10);
                 }
                 if(currentpressedkey==KEYBACK) {
                     clear_display();
@@ -232,7 +260,26 @@ void task_debugmenu(void) {
                     charger_charge = !charger_charge;
                 }
             }
-            break;            
+            break;     
+        case taskstate_debugwiresensor:
+            print_wiresensor_menu();
+            if(lastpressedkey==KEY_NONE) {
+                if(currentpressedkey==KEYBACK) {
+                    clear_display();
+                    wire_sensor_debug(false, wiresensor_mode_near, false);
+                    set_text_size(13);
+                    taskstate = taskstate_init;
+                }
+                if(currentpressedkey==KEY2) {
+                    wiresensor_mode_near = !wiresensor_mode_near;
+                    wire_sensor_debug(true, wiresensor_mode_near, false);
+                }
+                if(currentpressedkey==KEY3) {
+                    wire_sensor_debug(true, wiresensor_mode_near, true);
+                    clear_display();
+                }
+            }
+            break;                   
         case taskstate_inactive:
             break;
         default:

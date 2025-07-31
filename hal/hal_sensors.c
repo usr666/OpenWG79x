@@ -15,11 +15,17 @@
 #define RIGHT_SENSOR_FALLING_EDGE_BITVAL 0x400
 #define LEFT_SENSOR_FALLING_EDGE_BITVAL 0x100
 
+#define TRIGGER_WIRE_SENSOR_INTERVAL_MS 100
+
 static bool near_wire = false, try_near_wire = false;
 static systimer_t try_near_wire_timer;
+static bool debugmode;
 static bool right_wire_sensor = false, left_wire_sensor = false;
 static bool right_firstedge_detected = false, left_firstedge_detected = false;
 static systimer_t timer;
+uint32_t debug_wire_times[NUMBER_OF_DEBUG_WIRE_TIMES];
+uint8_t debug_wire_values[NUMBER_OF_DEBUG_WIRE_TIMES];
+uint8_t debug_wire_idx = 0;
 
 void init_hal_sensors(void) {
     // Input pins seems to work ok, set outputs for controlling wire sensors
@@ -37,20 +43,21 @@ void init_hal_sensors(void) {
 
     // Let triggersensor setup and start interrupt
     NVIC_DisableIRQ(EINT3_IRQn);
-    systimer_start(&timer, 30);
+    systimer_start(&timer, TRIGGER_WIRE_SENSOR_INTERVAL_MS);
     systimer_start(&try_near_wire_timer, 1000);
     near_wire = false;
+    debugmode = false;
 }
 
 void task_sensors(void)
 {
-    if(systimer_is_expired(&timer)) {
+    if(debugmode == false && systimer_is_expired(&timer)) {
         if(!near_wire && systimer_is_expired(&try_near_wire_timer)) {
             try_near_wire = true;
             LPC_GPIOx(0)->FIOSET = ( 1 << 21 );
         }
         trigger_wire_sensor();
-        systimer_start(&timer, 30);
+        systimer_start(&timer, TRIGGER_WIRE_SENSOR_INTERVAL_MS);
     }
 }
 
@@ -66,6 +73,8 @@ bool get_sensor(sensors_t sensor)
         return right_wire_sensor;
     } else if(sensor == SENSOR_LEFT_WIRE_INSIDE) {
         return left_wire_sensor;
+    } else if(sensor == SENSOR_NEAR_WIRE) {
+        return near_wire;
     }
 
     return false; // Should never happen, todo: assert
@@ -91,21 +100,23 @@ __STATIC_INLINE bool NVIC_IsIRQEnabled(IRQn_Type IRQn)
 */
 void trigger_wire_sensor(void)
 {
-    // Are interrupts still active? This means no interrupts has been triggered since last call to this function. Probably no signal detected.
-    if(NVIC_IsIRQEnabled(EINT3_IRQn)) {
-        if(try_near_wire) {
-            try_near_wire = false;
-            LPC_GPIOx(0)->FIOCLR = ( 1 << 21 );
-            systimer_start(&try_near_wire_timer, 1000);
-        } else {
-            right_wire_sensor = false;
-            left_wire_sensor = false;
+    if(!debugmode) {
+        // Are interrupts still active? This means no interrupts has been triggered since last call to this function. Probably no signal detected.
+        if(NVIC_IsIRQEnabled(EINT3_IRQn)) {
+            if(try_near_wire) {
+                try_near_wire = false;
+                LPC_GPIOx(0)->FIOCLR = ( 1 << 21 );
+                systimer_start(&try_near_wire_timer, 1000);
+            } else {
+                right_wire_sensor = false;
+                left_wire_sensor = false;
+            }
+            near_wire = false;
+            return;
         }
-        near_wire = false;
-        return;
+        right_firstedge_detected = false;
+        left_firstedge_detected = false;
     }
-    right_firstedge_detected = false;
-    left_firstedge_detected = false;
 
     // Reset timer0
     LPC_TIM0->TCR = 0x02;
@@ -117,8 +128,8 @@ void trigger_wire_sensor(void)
 }
 
 /* Conclusions of test with wire sensors
-     If the first edge after a long time without edges (at least 0x10000 TIMER0-ticks) is a rising edge that sensor is inside the wire
-     If the first edge after a long time without edges (at least 0x10000 TIMER0-ticks) is a falling edge that sensor is outside the wire
+     If the first edge after a long time without edges (at least 0x40000 and not more than 0x50000 TIMER0-ticks) is a rising edge that sensor is inside the wire
+     If the first edge after a long time without edges (at least 0x40000 and not more than 0x50000 TIMER0-ticks) is a falling edge that sensor is outside the wire
      Bit 0x200 is Right sensor rising edge
      Bit 0x400 is Right sensor falling edge
      Bit 0x080 is Left sensor rising edge
@@ -145,36 +156,69 @@ void __attribute__ ((interrupt)) EINT3_IRQHandler(void)
     LPC_GPIOINT->IO0IntClr = intr;
     LPC_GPIOINT->IO0IntClr = intf;
 
-    #define LONG_WIRESENSOR_IDLE_TIME 0x10000
-    if(time > LONG_WIRESENSOR_IDLE_TIME || left_firstedge_detected || right_firstedge_detected)
-    {
-        if(!left_firstedge_detected) {
-            if((intf & LEFT_SENSOR_FALLING_EDGE_BITVAL) > 0) {
-                left_firstedge_detected = true;
-                left_wire_sensor = false;
-            } else if((intr & LEFT_SENSOR_RISING_EDGE_BITVAL) > 0) {
-                left_firstedge_detected = true;
-                left_wire_sensor = true;
-            }
-        }
-        if(!right_firstedge_detected) {
-            if((intf & RIGHT_SENSOR_FALLING_EDGE_BITVAL) > 0) {
-                right_firstedge_detected = true;
-                right_wire_sensor = false;
-            } else if((intr & RIGHT_SENSOR_RISING_EDGE_BITVAL) > 0) {
-                right_firstedge_detected = true;
-                right_wire_sensor = true;
-            }
-        }
+    if(!debugmode) {
 
-        if(left_firstedge_detected && right_firstedge_detected)
+        #define LONG_WIRESENSOR_IDLE_TIME 0x40000UL
+        #define TOO_LONG_WIRESENSOR_IDLE_TIME 0x50000UL
+        if((time > LONG_WIRESENSOR_IDLE_TIME && time < TOO_LONG_WIRESENSOR_IDLE_TIME) || left_firstedge_detected || right_firstedge_detected)
         {
+            if(!left_firstedge_detected) {
+                if((intf & LEFT_SENSOR_FALLING_EDGE_BITVAL) > 0) {
+                    left_firstedge_detected = true;
+                    left_wire_sensor = false;
+                } else if((intr & LEFT_SENSOR_RISING_EDGE_BITVAL) > 0) {
+                    left_firstedge_detected = true;
+                    left_wire_sensor = true;
+                }
+            }
+            if(!right_firstedge_detected) {
+                if((intf & RIGHT_SENSOR_FALLING_EDGE_BITVAL) > 0) {
+                    right_firstedge_detected = true;
+                    right_wire_sensor = false;
+                } else if((intr & RIGHT_SENSOR_RISING_EDGE_BITVAL) > 0) {
+                    right_firstedge_detected = true;
+                    right_wire_sensor = true;
+                }
+            }
+
+            if(left_firstedge_detected && right_firstedge_detected)
+            {
+                NVIC_DisableIRQ(EINT3_IRQn);
+                LPC_GPIOINT->IO0IntEnR = 0;
+                LPC_GPIOINT->IO0IntEnF = 0;
+                if(try_near_wire) {
+                    near_wire = true;
+                }
+            }
+        }
+    } else {
+        if(debug_wire_idx < NUMBER_OF_DEBUG_WIRE_TIMES) {
+            debug_wire_times[debug_wire_idx] = time;
+            debug_wire_values[debug_wire_idx] = ((intr >> 3) & 0x50) | ((intf >> 8) & 0x05);
+            debug_wire_idx++;
+        } else {
             NVIC_DisableIRQ(EINT3_IRQn);
             LPC_GPIOINT->IO0IntEnR = 0;
             LPC_GPIOINT->IO0IntEnF = 0;
-            if(try_near_wire) {
-                near_wire = true;
-            }
         }
+    }
+}
+
+void wire_sensor_debug(bool debug_enable, bool near_range, bool restart_samples) {
+    if(debug_enable) {
+        debugmode = true;
+    } else {
+        debugmode = false;
+    }
+
+    if(near_range) {
+        LPC_GPIOx(0)->FIOSET = ( 1 << 21 );       
+    } else {
+        LPC_GPIOx(0)->FIOCLR = ( 1 << 21 );
+    }
+
+    if(restart_samples) {
+        debug_wire_idx = 0;
+        trigger_wire_sensor();
     }
 }
