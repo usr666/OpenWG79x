@@ -13,7 +13,7 @@
 static bool charger_initiate = false;
 static bool charger_charge = false;
 static uint8_t rightspeed=0, leftspeed=0, spindlespeed=0;
-static bool wiresensor_mode_near = true;
+static bool wiresensor_mode_near = true, wiresensor_polarity = true;
 static bool menuactive;
 typedef enum {
     taskstate_init = 0,
@@ -130,7 +130,7 @@ static void print_charger_menu(void)
 void print_wiresensor_menu(void)
 {
     char buffer[64];
-    sprintf(buffer, "near=%d 2=N 3=T", wiresensor_mode_near ? 1 : 0);
+    sprintf(buffer, "1=%d 2=%d 3=TRIG", wiresensor_polarity ? 1 : 0, wiresensor_mode_near ? 1 : 0);
     print_text(0, buffer);
     if(debug_wire_idx >= NUMBER_OF_DEBUG_WIRE_TIMES) {
         sprintf(buffer, "%05lx %02x %05lx %02x", RT(debug_wire_times[0]), debug_wire_values[0], RT(debug_wire_times[1]), debug_wire_values[1]);
@@ -177,7 +177,7 @@ void task_debugmenu(void) {
                 if(currentpressedkey==KEY6) {
                     clear_display();
                     taskstate = taskstate_debugwiresensor;
-                    wire_sensor_debug(true, wiresensor_mode_near, true);
+                    wire_sensor_debug(true, wiresensor_polarity, wiresensor_mode_near, true);
                     set_text_size(10);
                 }
                 if(currentpressedkey==KEYBACK) {
@@ -266,16 +266,20 @@ void task_debugmenu(void) {
             if(lastpressedkey==KEY_NONE) {
                 if(currentpressedkey==KEYBACK) {
                     clear_display();
-                    wire_sensor_debug(false, wiresensor_mode_near, false);
+                    wire_sensor_debug(false, wiresensor_polarity, wiresensor_mode_near, false);
                     set_text_size(13);
                     taskstate = taskstate_init;
                 }
+                if(currentpressedkey==KEY1) {
+                    wiresensor_polarity = !wiresensor_polarity;
+                    wire_sensor_debug(true, wiresensor_polarity, wiresensor_mode_near, false);
+                }
                 if(currentpressedkey==KEY2) {
                     wiresensor_mode_near = !wiresensor_mode_near;
-                    wire_sensor_debug(true, wiresensor_mode_near, false);
+                    wire_sensor_debug(true, wiresensor_polarity, wiresensor_mode_near, false);
                 }
                 if(currentpressedkey==KEY3) {
-                    wire_sensor_debug(true, wiresensor_mode_near, true);
+                    wire_sensor_debug(true, wiresensor_polarity, wiresensor_mode_near, true);
                     clear_display();
                 }
             }

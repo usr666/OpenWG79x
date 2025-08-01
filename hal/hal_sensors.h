@@ -16,7 +16,7 @@ void trigger_wire_sensor(void);
 extern uint32_t debug_wire_times[NUMBER_OF_DEBUG_WIRE_TIMES];
 extern uint8_t debug_wire_values[NUMBER_OF_DEBUG_WIRE_TIMES];
 extern uint8_t debug_wire_idx;
-void wire_sensor_debug(bool debug_enable, bool near_range, bool restart_samples);
+void wire_sensor_debug(bool debug_enable, bool polarity, bool near_range, bool restart_samples);
 
 
 #endif

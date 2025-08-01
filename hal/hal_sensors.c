@@ -204,7 +204,7 @@ void __attribute__ ((interrupt)) EINT3_IRQHandler(void)
     }
 }
 
-void wire_sensor_debug(bool debug_enable, bool near_range, bool restart_samples) {
+void wire_sensor_debug(bool debug_enable, bool polarity, bool near_range, bool restart_samples) {
     if(debug_enable) {
         debugmode = true;
     } else {
@@ -215,6 +215,12 @@ void wire_sensor_debug(bool debug_enable, bool near_range, bool restart_samples)
         LPC_GPIOx(0)->FIOSET = ( 1 << 21 );       
     } else {
         LPC_GPIOx(0)->FIOCLR = ( 1 << 21 );
+    }
+
+    if(polarity) {
+        LPC_GPIOx(0)->FIOSET = ( 1 << 22 );       
+    } else {
+        LPC_GPIOx(0)->FIOCLR = ( 1 << 22 );
     }
 
     if(restart_samples) {
