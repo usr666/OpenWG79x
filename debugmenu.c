@@ -66,7 +66,7 @@ static void print_sensors_menu(void)
 
     sprintf(buffer, "L %s R %s", get_sensor(SENSOR_LEFT_WIRE_INSIDE) ? "IN " : "OUT", get_sensor(SENSOR_RIGHT_WIRE_INSIDE) ? "IN " : "OUT");
     print_text(0, buffer);
-    sprintf(buffer, "WIRE %s", get_sensor(SENSOR_NEAR_WIRE) ? "NEAR" : "FAR");
+    sprintf(buffer, "%4s %5d", get_sensor(SENSOR_NEAR_WIRE) ? "NEAR" : "FAR", get_wiredistance());
     print_text(1, buffer);
     sprintf(buffer, "LIFT=%d FRONT=%d", (int)get_sensor(SENSOR_LIFT), (int)get_sensor(SENSOR_FRONT));
     print_text(2, buffer);

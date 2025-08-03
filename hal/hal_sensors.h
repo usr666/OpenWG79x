@@ -9,8 +9,7 @@ typedef enum {
 void init_hal_sensors(void);
 void task_sensors(void);
 bool get_sensor(sensors_t sensor);
-
-void trigger_wire_sensor(void);
+int get_wiredistance(void);
 
 #define NUMBER_OF_DEBUG_WIRE_TIMES 10
 extern uint32_t debug_wire_times[NUMBER_OF_DEBUG_WIRE_TIMES];

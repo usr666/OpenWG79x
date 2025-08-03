@@ -47,6 +47,7 @@ static volatile uint32_t intdata_intf[NUMBER_OF_INTDATA];
 
 static bool parseintdata(void);
 static void sampleoutputs(void);
+static void trigger_wire_sensor(void);
 
 void init_hal_sensors(void) {
     // Input pins seems to work ok, set outputs for controlling wire sensors
@@ -150,6 +151,11 @@ bool get_sensor(sensors_t sensor)
     return false; // Should never happen, todo: assert
 }
 
+int get_wiredistance(void)
+{
+    return time_between_firstedges;
+}
+
 #define FILTER_MAX_COUNT 6
 #define FILTER_LIMIT (FILTER_MAX_COUNT/2)
 static uint8_t updatesignal(bool signalvalue, uint8_t oldcount)
@@ -197,7 +203,7 @@ __STATIC_INLINE bool NVIC_IsIRQEnabled(IRQn_Type IRQn)
   Triggers a new read of the wire sensors. Starts writing from beginning of intdata buffer and enables interrupt.
   Interrupt is disabled by isr when sample buffer is filled.
 */
-void trigger_wire_sensor(void)
+static void trigger_wire_sensor(void)
 {
     NVIC_DisableIRQ(EINT3_IRQn);
 

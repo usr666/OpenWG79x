@@ -154,8 +154,13 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
-            set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-            set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            if(get_sensor(SENSOR_NEAR_WIRE)) {
+                set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+                set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
+            } else {
+                set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
+                set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            }
             set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
             checksensors(false);
             if(get_battery_soc() < GO_TO_CHARGE_STATION_SOC) {
