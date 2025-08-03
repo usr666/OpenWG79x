@@ -122,6 +122,7 @@ void checksensors(bool wirefound) {
 /* Mow control state machine. Active when mainstate is mainstate_mow */
 void mow_state(void) {
     static systimer_t mowtimer, timeouttimer;
+    int wiredistance;
     char tmpstr[20];
     uint32_t batteryvoltage;
     batteryvoltage = get_battery_voltage();
@@ -154,13 +155,8 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
-            if(get_sensor(SENSOR_NEAR_WIRE)) {
-                set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
-                set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
-            } else {
-                set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-                set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
-            }
+            set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
+            set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
             checksensors(false);
             if(get_battery_soc() < GO_TO_CHARGE_STATION_SOC) {
@@ -298,10 +294,19 @@ void mow_state(void) {
             systimer_start(&timeouttimer, MAX_TIME_OUT_OF_AREA);
             break;
         case mowstate_wire_found_2:
+            wiredistance = get_wiredistance();
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
-            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
-            set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
-            set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);                
+            if(wiredistance == 0) {
+                set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+                set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
+            } else if(wiredistance > 0) {
+                set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED-10);
+                set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
+            } else if(wiredistance < 0) {
+                set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+                set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED-10);
+            }
             checksensors(true);
             if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
                 // turn left

@@ -9,6 +9,10 @@
 #define LIFT_SENSOR_PINNO     16
 #define STOPBTN_SENSOR_PORTNO    1
 #define STOPBTN_SENSOR_PINNO     17
+#define WIRESENS_RANGE_PORTNO 0
+#define WIRESENS_RANGE_PINNO 22
+#define WIRESENS_POLARITY_PORTNO 0
+#define WIRESENS_POLARITY_PINNO 22
 
 #define RIGHT_SENSOR_RISING_EDGE_BITVAL 0x200
 #define LEFT_SENSOR_RISING_EDGE_BITVAL 0x080
@@ -19,7 +23,9 @@
 #define TOO_LONG_WIRESENSOR_IDLE_TIME 0x50000UL
 #define MAX_TIME_BETWEEN_FIRSTEDGES 0x200UL
 #define MAX_TIME_BEFORE_OTHEREDGE 0x1100UL
-#define MAX_FAILED_ATTEMPTS_NEARWIRE 3
+#define MAX_FAILED_ATTEMPTS_NEARWIRE 5
+#define MAX_FAILED_ATTEMPTS_FARWIRE 10
+#define FAILED_ATTEMPTS_BEFORE_TOGGLE_POLARITY 2
 #define FIND_SIGNAL_TIMEOUT_MS 30
 #define TRY_NEAR_INTERVAL_MS 500
 
@@ -31,7 +37,7 @@ typedef enum {
 }wirestate_t;
 static wirestate_t wirestate;
 
-static bool near_wire = false;
+static bool near_wire = false, valid_signal_detected = false;
 static bool right_wire_sensor = false, left_wire_sensor = false;
 static bool filtered_near_wire = false, filtered_right_wire_sensor=false, filtered_left_wire_sensor = false;
 static int time_between_firstedges; // Can be used to find out which of left and right sensor is closest to wire
@@ -48,10 +54,13 @@ static volatile uint32_t intdata_intf[NUMBER_OF_INTDATA];
 static bool parseintdata(void);
 static void sampleoutputs(void);
 static void trigger_wire_sensor(void);
+static void togglepolarity(void);
 
 void init_hal_sensors(void) {
     // Input pins seems to work ok, set outputs for controlling wire sensors
-    LPC_GPIO0->FIODIR |= (1<<21 | 1<<22);
+    //LPC_GPIO0->FIODIR |= (1<<21 | 1<<22);
+    LPC_GPIOx(WIRESENS_RANGE_PORTNO)->FIODIR |= ( 1 << WIRESENS_RANGE_PINNO );
+    LPC_GPIOx(WIRESENS_POLARITY_PORTNO)->FIODIR |= ( 1 << WIRESENS_POLARITY_PINNO );
 
     // Setup timer0 for use in wire sensor interrupt time measures
     // Power up Timer0
@@ -73,28 +82,35 @@ void init_hal_sensors(void) {
 void task_sensors(void)
 {
     static systimer_t find_signal_timer, try_near_timer;
-    static uint8_t no_of_failed_nearwire;
+    static uint8_t no_of_failed_signaldet;
     if(!debugmode) {
         switch(wirestate) {
             case wirestate_start_sampling:
                 near_wire = false;
-                LPC_GPIOx(0)->FIOSET = ( 1 << 21 );
+                valid_signal_detected = false;
+                LPC_GPIOx(WIRESENS_RANGE_PORTNO)->FIOSET = ( 1 << WIRESENS_RANGE_PINNO );
                 trigger_wire_sensor();
                 systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
                 wirestate = wirestate_near_wire;
-                no_of_failed_nearwire = 0;
+                no_of_failed_signaldet = 0;
                 break;
             case wirestate_near_wire:
                 if(parseintdata()) {
+                    no_of_failed_signaldet=0;
+                    valid_signal_detected = true;
                     near_wire = true;
                     trigger_wire_sensor();
                     systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
-                    no_of_failed_nearwire=0;
                     sampleoutputs();
                 } else if(systimer_is_expired(&find_signal_timer) || intdata_idx==NUMBER_OF_INTDATA) {
-                    if(no_of_failed_nearwire++ > MAX_FAILED_ATTEMPTS_NEARWIRE) {
-                        LPC_GPIOx(0)->FIOCLR = ( 1 << 21 );
+                    valid_signal_detected = false;
+                    if(no_of_failed_signaldet > FAILED_ATTEMPTS_BEFORE_TOGGLE_POLARITY) {
+                        togglepolarity();
+                    }
+                    if(no_of_failed_signaldet++ > MAX_FAILED_ATTEMPTS_NEARWIRE) {
+                        LPC_GPIOx(WIRESENS_RANGE_PORTNO)->FIOCLR = ( 1 << WIRESENS_RANGE_PINNO );
                         wirestate = wirestate_far_from_wire;
+                        no_of_failed_signaldet=0;
                     }
                     trigger_wire_sensor();
                     systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
@@ -104,17 +120,25 @@ void task_sensors(void)
             case wirestate_far_from_wire:
                 near_wire = false;
                 if(parseintdata()) {
+                    no_of_failed_signaldet=0;
+                    valid_signal_detected = true;
                     if(systimer_is_expired(&try_near_timer)) {
-                        LPC_GPIOx(0)->FIOSET = ( 1 << 21 );
+                        LPC_GPIOx(WIRESENS_RANGE_PORTNO)->FIOSET = ( 1 << WIRESENS_RANGE_PINNO );
                         wirestate = wirestate_near_wire;
-                        no_of_failed_nearwire = 0;
+                        no_of_failed_signaldet = 0;
                     }
                     trigger_wire_sensor();
                     systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
                     sampleoutputs();
                 } else if(systimer_is_expired(&find_signal_timer) || intdata_idx==NUMBER_OF_INTDATA) {
-                    left_wire_sensor = false;
-                    right_wire_sensor = false;
+                    if(no_of_failed_signaldet > FAILED_ATTEMPTS_BEFORE_TOGGLE_POLARITY) {
+                        togglepolarity();
+                    }
+                    if(no_of_failed_signaldet++ > MAX_FAILED_ATTEMPTS_FARWIRE) {
+                        left_wire_sensor = false;
+                        right_wire_sensor = false;
+                    }
+                    valid_signal_detected = false;
                     trigger_wire_sensor();
                     systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
                     sampleoutputs();
@@ -141,11 +165,11 @@ bool get_sensor(sensors_t sensor)
     } else if(sensor == SENSOR_STOPBTN) {
         return ((((LPC_GPIOx(STOPBTN_SENSOR_PORTNO)->FIOPIN) & (1 << STOPBTN_SENSOR_PINNO))) == 0 ? false : true);
     } else if(sensor == SENSOR_RIGHT_WIRE_INSIDE) {
-        return filtered_right_wire_sensor;
+        return right_wire_sensor;
     } else if(sensor == SENSOR_LEFT_WIRE_INSIDE) {
-        return filtered_left_wire_sensor;
+        return left_wire_sensor;
     } else if(sensor == SENSOR_NEAR_WIRE) {
-        return filtered_near_wire;
+        return near_wire;
     }
 
     return false; // Should never happen, todo: assert
@@ -269,15 +293,15 @@ void wire_sensor_debug(bool debug_enable, bool polarity, bool near_range, bool r
     }
 
     if(near_range) {
-        LPC_GPIOx(0)->FIOSET = ( 1 << 21 );       
+        LPC_GPIOx(WIRESENS_RANGE_PORTNO)->FIOSET = ( 1 << WIRESENS_RANGE_PINNO );
     } else {
-        LPC_GPIOx(0)->FIOCLR = ( 1 << 21 );
+        LPC_GPIOx(WIRESENS_RANGE_PORTNO)->FIOCLR = ( 1 << WIRESENS_RANGE_PINNO );
     }
 
     if(polarity) {
-        LPC_GPIOx(0)->FIOSET = ( 1 << 22 );       
+        LPC_GPIOx(WIRESENS_POLARITY_PORTNO)->FIOSET = ( 1 << WIRESENS_POLARITY_PINNO );
     } else {
-        LPC_GPIOx(0)->FIOCLR = ( 1 << 22 );
+        LPC_GPIOx(WIRESENS_POLARITY_PORTNO)->FIOCLR = ( 1 << WIRESENS_POLARITY_PINNO );
     }
 
     if(restart_samples) {
@@ -439,4 +463,14 @@ static bool parseintdata(void)
         }
     }
     return false;
+}
+
+static void togglepolarity(void) {
+    static bool polarity = false;
+    polarity = !polarity;
+    if(polarity) {
+        LPC_GPIOx(WIRESENS_POLARITY_PORTNO)->FIOSET = ( 1 << WIRESENS_POLARITY_PINNO );
+    } else {
+        LPC_GPIOx(WIRESENS_POLARITY_PORTNO)->FIOCLR = ( 1 << WIRESENS_POLARITY_PINNO );
+    }
 }
