@@ -46,7 +46,7 @@ static bool findhome; // true if we are looking for home position
 #define SLOW_SPEED      20
 #define INTERMEDIATE_SPEED 30
 #define DEFAULT_SPEED   45
-#define SPINDLE_DEFAULT_SPEED 100
+#define SPINDLE_DEFAULT_SPEED 80
 #define SLOW_RAMP       10
 #define DEFAULT_RAMP    20
 #define FAST_RAMP       30
@@ -265,7 +265,11 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_LEFT, IMMEDIATE_RAMP);
             set_motor_speed(MOTOR_RIGHT, 0);
             set_motor_speed(MOTOR_LEFT, 0);
-            systimer_start(&mowtimer, WAIT_FOR_CHARGE_DETECT);
+            if(findhome) {
+                systimer_start(&mowtimer, WAIT_FOR_CHARGE_DETECT);
+            } else {
+                systimer_start(&mowtimer, 0);
+            }
             mowstate = mowstate_backoff_2;
             break;
         case mowstate_backoff_2:
@@ -294,10 +298,10 @@ void mow_state(void) {
             systimer_start(&timeouttimer, MAX_TIME_OUT_OF_AREA);
             break;
         case mowstate_wire_found_2:
-            set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
-            set_motor_ramp(MOTOR_LEFT, FAST_RAMP);
-            set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
-            set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
+            set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+            set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
             checksensors(true);
             if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
                 // turn left
