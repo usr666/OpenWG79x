@@ -1,5 +1,6 @@
 #include "hal_mcu.h"
 #include "hal_sensors.h"
+#include "hal_adc.h"
 #include "system.h"
 #include <stdbool.h>
 
@@ -10,9 +11,12 @@
 #define STOPBTN_SENSOR_PORTNO    1
 #define STOPBTN_SENSOR_PINNO     17
 #define WIRESENS_RANGE_PORTNO 0
-#define WIRESENS_RANGE_PINNO 22
+#define WIRESENS_RANGE_PINNO 21
 #define WIRESENS_POLARITY_PORTNO 0
 #define WIRESENS_POLARITY_PINNO 22
+#define PITCH_PINNO 3
+#define ROLL_PINNO 2
+#define BITS_PER_90_DEGREES 620
 
 #define RIGHT_SENSOR_RISING_EDGE_BITVAL 0x200
 #define LEFT_SENSOR_RISING_EDGE_BITVAL 0x080
@@ -39,7 +43,6 @@ static wirestate_t wirestate;
 
 static bool near_wire = false, valid_signal_detected = false;
 static bool right_wire_sensor = false, left_wire_sensor = false;
-static bool filtered_near_wire = false, filtered_right_wire_sensor=false, filtered_left_wire_sensor = false;
 static int time_between_firstedges; // Can be used to find out which of left and right sensor is closest to wire
 static bool debugmode;
 uint32_t debug_wire_times[NUMBER_OF_DEBUG_WIRE_TIMES];
@@ -51,8 +54,12 @@ static volatile uint32_t intdata_time[NUMBER_OF_INTDATA];
 static volatile uint32_t intdata_intr[NUMBER_OF_INTDATA];
 static volatile uint32_t intdata_intf[NUMBER_OF_INTDATA];
 
+#define NUMBER_OF_SAMPLES_IN_FILTER 10
+#define SAMPLE_INTERVAL_MS 100
+static systimer_t sample_timer;
+static uint32_t pitch_filtersum=0, roll_filtersum=0;
+
 static bool parseintdata(void);
-static void sampleoutputs(void);
 static void trigger_wire_sensor(void);
 static void togglepolarity(void);
 
@@ -77,12 +84,29 @@ void init_hal_sensors(void) {
     near_wire = false;
     debugmode = false;
     wirestate = wirestate_start_sampling;
+
+    systimer_start(&sample_timer, SAMPLE_INTERVAL_MS);
+}
+
+void sample_signals(void) 
+{
+    pitch_filtersum -= pitch_filtersum/NUMBER_OF_SAMPLES_IN_FILTER;
+    pitch_filtersum += hal_adc_get_value(PITCH_PINNO);
+
+    roll_filtersum -= roll_filtersum/NUMBER_OF_SAMPLES_IN_FILTER;
+    roll_filtersum += hal_adc_get_value(ROLL_PINNO);
 }
 
 void task_sensors(void)
 {
     static systimer_t find_signal_timer, try_near_timer;
     static uint8_t no_of_failed_signaldet;
+
+    if(systimer_is_expired(&sample_timer)) {
+        systimer_start(&sample_timer, SAMPLE_INTERVAL_MS);
+        sample_signals();
+    }
+
     if(!debugmode) {
         switch(wirestate) {
             case wirestate_start_sampling:
@@ -101,7 +125,6 @@ void task_sensors(void)
                     near_wire = true;
                     trigger_wire_sensor();
                     systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
-                    sampleoutputs();
                 } else if(systimer_is_expired(&find_signal_timer) || intdata_idx==NUMBER_OF_INTDATA) {
                     valid_signal_detected = false;
                     if(no_of_failed_signaldet > FAILED_ATTEMPTS_BEFORE_TOGGLE_POLARITY) {
@@ -129,7 +152,6 @@ void task_sensors(void)
                     }
                     trigger_wire_sensor();
                     systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
-                    sampleoutputs();
                 } else if(systimer_is_expired(&find_signal_timer) || intdata_idx==NUMBER_OF_INTDATA) {
                     if(no_of_failed_signaldet > FAILED_ATTEMPTS_BEFORE_TOGGLE_POLARITY) {
                         togglepolarity();
@@ -141,7 +163,6 @@ void task_sensors(void)
                     valid_signal_detected = false;
                     trigger_wire_sensor();
                     systimer_start(&find_signal_timer, FIND_SIGNAL_TIMEOUT_MS);
-                    sampleoutputs();
                 }
                 break;
         }
@@ -175,41 +196,35 @@ bool get_sensor(sensors_t sensor)
     return false; // Should never happen, todo: assert
 }
 
+static int convert_bits_to_degrees(uint32_t adval)
+{
+  int32_t res;
+  res = 0x800UL - adval; // Remove zero offset and invert
+  if(res > BITS_PER_90_DEGREES) {
+    return 90;
+  } else if(res < -BITS_PER_90_DEGREES) {
+    return -90;
+  }
+  res = res * 1000;
+  res = res / (BITS_PER_90_DEGREES * 1000 / 90);
+  return(res);
+}
+
+// Get pitch in degrees. Positive value when front of mower is higher than tail.
+int get_pitch()
+{
+  return(convert_bits_to_degrees(pitch_filtersum/NUMBER_OF_SAMPLES_IN_FILTER));
+}
+
+// Get roll in degrees. Positive value when the mower left side is higher than right side.
+int get_roll()
+{
+  return(convert_bits_to_degrees(roll_filtersum/NUMBER_OF_SAMPLES_IN_FILTER));
+}
+
 int get_wiredistance(void)
 {
     return time_between_firstedges;
-}
-
-#define FILTER_MAX_COUNT 6
-#define FILTER_LIMIT (FILTER_MAX_COUNT/2)
-static uint8_t updatesignal(bool signalvalue, uint8_t oldcount)
-{
-    if(signalvalue) {
-        if(oldcount < FILTER_MAX_COUNT) {
-            return(oldcount + 1);
-        } else {
-            return FILTER_MAX_COUNT;
-        }
-    } else {
-        if(oldcount > 0) {
-            return(oldcount - 1);
-        }
-    }
-    return 0;
-}
-
-static void sampleoutputs(void)
-{
-    static uint8_t near_wire_count=0, left_count=0, right_count=0;
-    
-    near_wire_count = updatesignal(near_wire, near_wire_count);
-    filtered_near_wire = (near_wire_count >= FILTER_LIMIT);
-
-    left_count = updatesignal(left_wire_sensor, left_count);
-    filtered_left_wire_sensor = (left_count >= FILTER_LIMIT);
-
-    right_count = updatesignal(right_wire_sensor, right_count);
-    filtered_right_wire_sensor = (right_count >= FILTER_LIMIT);
 }
 
 /** \brief  Read External Interrupt Enable status

@@ -70,10 +70,12 @@ static void print_sensors_menu(void)
     print_text(1, buffer);
     sprintf(buffer, "LIFT=%d FRONT=%d", (int)get_sensor(SENSOR_LIFT), (int)get_sensor(SENSOR_FRONT));
     print_text(2, buffer);
+    sprintf(buffer, "pitch%4d roll%4d", get_pitch(), get_roll());
+    print_text(3, buffer);
     if(get_sensor(SENSOR_STOPBTN)) {
-        print_text(3, "KEYSTOP");
+        print_text(4, "KEYSTOP");
     } else {
-        print_text(3, keyStrings[get_pressed_key()]);
+        print_text(4, keyStrings[get_pressed_key()]);
     }
 }
 

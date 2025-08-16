@@ -1,6 +1,7 @@
 #include "system.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include "hal/hal_keyboard.h"
 #include "hal/hal_sensors.h"
 #include "hal/hal_motor.h"
@@ -123,6 +124,7 @@ void checksensors(bool wirefound) {
 void mow_state(void) {
     static systimer_t mowtimer, timeouttimer;
     int wiredistance;
+    int roll, pitch;
     char tmpstr[20];
     uint32_t batteryvoltage;
     batteryvoltage = get_battery_voltage();
@@ -155,8 +157,21 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
-            set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-            set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            // If mower is going downhill make sure it does not go straight downhill
+            roll = get_roll();
+            pitch = get_pitch();
+            if(pitch < -9 && abs(pitch) > abs(roll)) {
+                if(roll > 0) {
+                    set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
+                    set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED/2);
+                } else {
+                    set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED/2);
+                    set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+                }
+            } else {
+                set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
+                set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            }
             set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
             checksensors(false);
             if(get_battery_soc() < GO_TO_CHARGE_STATION_SOC) {
