@@ -171,17 +171,22 @@ void mow_state(void) {
             // If mower is going downhill make sure it does not go straight downhill
             roll = get_roll();
             pitch = get_pitch();
-            if(pitch < -9 && abs(pitch) > abs(roll)) {
-                if(roll > 0) {
-                    set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-                    set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED/2);
+            if(pitch < -9) {
+                if(abs(pitch) > abs(roll)) {
+                    if(roll > 0) {
+                        set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
+                        set_motor_speed(MOTOR_LEFT, SLOW_SPEED/2);
+                    } else {
+                        set_motor_speed(MOTOR_RIGHT, SLOW_SPEED/2);
+                        set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
+                    }
                 } else {
-                    set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED/2);
+                    set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
                     set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
                 }
             } else {
-                set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-                set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+                set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
+                set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
             }
             if(soc < TURN_OFF_DISC_SOC) {
                 set_motor_speed(MOTOR_SPINDLE, 0);
