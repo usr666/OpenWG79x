@@ -40,12 +40,14 @@ typedef enum {
     mowstate_wire_found_2,
     mowstate_refind_wire,
     mowstate_start_after_charge,
-    mowstate_start_after_charge_2
+    mowstate_start_after_charge_2,
+    mowstate_tilted
 }mowstate_t;
 static mowstate_t mowstate;
 static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
 static bool findhome; // true if we are looking for home position
 static systimer_t lowsocpowerofftimer;
+static uint8_t tiltcount;
 
 #define SLOW_SPEED      20
 #define INTERMEDIATE_SPEED 30
@@ -67,6 +69,7 @@ static systimer_t lowsocpowerofftimer;
 #define POWER_OFF_SOC 0
 #define TIME_IN_LOW_SOC_BEFORE_POWEROFF 10000
 #define TIME_IN_STOPPED_BEFORE_POWEROFF 300000
+#define TILTED_ANGLE 45
 
 void init_mowercontrol(void) {
     mainstate=mainstate_idle;
@@ -107,6 +110,9 @@ void checksensors(bool wirefound) {
         mowstate = mowstate_backoff;
     } else if(get_sensor(SENSOR_FRONT)) {
         mowstate = mowstate_backoff;
+    } else if(abs(get_pitch() > TILTED_ANGLE) || abs(get_roll() > TILTED_ANGLE)) {
+        stop_all_motors();
+        mowstate = mowstate_tilted;
     } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
         if(findhome) {
             if(!wirefound) {
@@ -165,6 +171,7 @@ void mow_state(void) {
             }
             break;
         case mowstate_running:
+            tiltcount = 0;
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
@@ -225,6 +232,14 @@ void mow_state(void) {
             if(systimer_is_expired(&timeouttimer)) {
                 mainstate = mainstate_stopped;
                 stopreason = "Out of area";
+            }
+            break;
+        case mowstate_tilted:
+            if(tiltcount++ < 1) {
+                mowstate = mowstate_backoff;
+            } else {
+                stopreason = "Mower tilted";
+                mainstate = mainstate_stopped;
             }
             break;
         case mowstate_turn:

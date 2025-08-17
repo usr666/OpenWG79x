@@ -10,6 +10,7 @@ This software does not fulfil any safety standards.
 - Basic driving inside wire area
 - Reverse when hitting obstacles
 - Turn when hitting wire (very basic, needs improvement)
+- Tilt detection
 - Wire following and detection of charging station
 - Battery charging
 - Display output and keyboard input
@@ -19,7 +20,6 @@ This software does not fulfil any safety standards.
 - Stop button
 
 ### What is not implemented/working
-- Tilt detection (important safety function)
 - Detect when mower is stuck and wheels just spin
 - Detect when mower is stuck and just moves back and forth in a small area
 - Detect when motors are blocked and wheel/disc does not move
