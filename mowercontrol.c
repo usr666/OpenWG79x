@@ -6,6 +6,7 @@
 #include "hal/hal_sensors.h"
 #include "hal/hal_motor.h"
 #include "hal/hal_charger.h"
+#include "hal/hal_power.h"
 #include "display.h"
 #include "debugmenu.h"
 
@@ -43,6 +44,7 @@ typedef enum {
 static mowstate_t mowstate;
 static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
 static bool findhome; // true if we are looking for home position
+static systimer_t lowsocpowerofftimer;
 
 #define SLOW_SPEED      20
 #define INTERMEDIATE_SPEED 30
@@ -59,12 +61,16 @@ static bool findhome; // true if we are looking for home position
 #define MAX_TIME_OUT_OF_AREA 4000
 #define MAX_TIME_REFIND_WIRE 16000
 #define REVERSE_AFTER_CHARGE_TIME_MS 5000
-#define GO_TO_CHARGE_STATION_SOC 50
+#define GO_TO_CHARGE_STATION_SOC 30
+#define TURN_OFF_DISC_SOC 20
+#define POWER_OFF_SOC 0
+#define TIME_IN_LOW_SOC_BEFORE_POWEROFF 10000
 
 void init_mowercontrol(void) {
     mainstate=mainstate_idle;
     stopreason="power on";
     findhome = false;
+    systimer_start(&lowsocpowerofftimer, TIME_IN_LOW_SOC_BEFORE_POWEROFF);
 }
 
 static void print_init_menu(void)
@@ -127,7 +133,9 @@ void mow_state(void) {
     int roll, pitch;
     char tmpstr[20];
     uint32_t batteryvoltage;
+    uint8_t soc;
     batteryvoltage = get_battery_voltage();
+    soc = get_battery_soc();
 
     clear_display();
     if(findhome) {
@@ -136,13 +144,14 @@ void mow_state(void) {
         print_text(0, "Mowing...");
     }
 
-    sprintf(tmpstr, "%2ld.%1ldV %2d%%", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc());
+    sprintf(tmpstr, "%2ld.%1ldV %2d%%", batteryvoltage/1000, (batteryvoltage/100)%10, soc);
     print_text(1, tmpstr);
 
     if(get_sensor(SENSOR_STOPBTN)) {
         mainstate = mainstate_stopped;
         stopreason="Stopbtn pressed";
     }
+
     switch(mowstate) {
         case mowstate_startmow:
             if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false || get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
@@ -172,9 +181,13 @@ void mow_state(void) {
                 set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
                 set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             }
-            set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
+            if(soc < TURN_OFF_DISC_SOC) {
+                set_motor_speed(MOTOR_SPINDLE, 0);
+            } else {
+                set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
+            }
             checksensors(false);
-            if(get_battery_soc() < GO_TO_CHARGE_STATION_SOC) {
+            if(soc < GO_TO_CHARGE_STATION_SOC) {
                 findhome = true;
             }
             break;
@@ -349,11 +362,21 @@ void task_mowercontrol(void) {
     static systimer_t chargedata_timer;
     char tmpstr[20];
     uint32_t batteryvoltage;
+    uint8_t soc;
     keys_t currentpressedkey;
     currentpressedkey = get_pressed_key();
+    soc = get_battery_soc();
 
     sprintf(tmpstr, "State %d,%d", mainstate, mowstate);
     print_text(3, tmpstr);
+
+    if(soc <= POWER_OFF_SOC && get_charger_connected()==false) {
+        if(systimer_is_expired(&lowsocpowerofftimer)) {
+            poweroff();
+        }
+    } else {
+        systimer_start(&lowsocpowerofftimer, TIME_IN_LOW_SOC_BEFORE_POWEROFF);
+    }    
 
     switch(mainstate) {
         case mainstate_idle:

@@ -74,7 +74,7 @@ uint32_t get_battery_voltage(void) {
   return(res);
 }
 
-#define BATTERY_VOLTAGE_EMPTY 21000
+#define BATTERY_VOLTAGE_EMPTY 19600
 #define BATTERY_VOLTAGE_FULL  29400
 // return battery state of charge in percent
 uint8_t get_battery_soc(void) {
