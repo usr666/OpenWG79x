@@ -20,6 +20,7 @@ typedef enum {
     mainstate_startcharge,
     mainstate_charging,
     mainstate_stopped,
+    mainstate_stopped_2,
     mainstate_number_of_states
 }mainstate_t;
 static mainstate_t mainstate;
@@ -65,6 +66,7 @@ static systimer_t lowsocpowerofftimer;
 #define TURN_OFF_DISC_SOC 20
 #define POWER_OFF_SOC 0
 #define TIME_IN_LOW_SOC_BEFORE_POWEROFF 10000
+#define TIME_IN_STOPPED_BEFORE_POWEROFF 300000
 
 void init_mowercontrol(void) {
     mainstate=mainstate_idle;
@@ -359,7 +361,7 @@ void mow_state(void) {
 void task_mowercontrol(void) {
     static keys_t lastpressedkey=0;
     static uint32_t chargecurrent;
-    static systimer_t chargedata_timer;
+    static systimer_t chargedata_timer, stoppedstate_timer;
     char tmpstr[20];
     uint32_t batteryvoltage;
     uint8_t soc;
@@ -464,10 +466,17 @@ void task_mowercontrol(void) {
             print_text(0, "Stopped");
             print_text(1, stopreason);
             print_text(2, "Press back");
+            mowing = false;
+            systimer_start(&stoppedstate_timer, TIME_IN_STOPPED_BEFORE_POWEROFF);
+            mainstate = mainstate_stopped_2;
+            break;
+        case mainstate_stopped_2:
+            if(systimer_is_expired(&stoppedstate_timer)) {
+                poweroff();
+            }
             if(lastpressedkey==KEY_NONE && currentpressedkey==KEYBACK) {
                 mainstate = mainstate_idle;
             }
-            mowing = false;
             break;
         default:
             DOASSERT();
