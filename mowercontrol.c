@@ -28,6 +28,7 @@ static mainstate_t mainstate;
 typedef enum {
     mowstate_startmow = 0,
     mowstate_running,
+    mowstate_running_downhill,
     mowstate_turn,
     mowstate_turn_2,
     mowstate_turn_3,
@@ -175,25 +176,12 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
-            // If mower is going downhill make sure it does not go straight downhill
+            set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
+            set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             roll = get_roll();
             pitch = get_pitch();
             if(pitch < -9) {
-                if(abs(pitch) > abs(roll)) {
-                    if(roll > 0) {
-                        set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
-                        set_motor_speed(MOTOR_LEFT, SLOW_SPEED/2);
-                    } else {
-                        set_motor_speed(MOTOR_RIGHT, SLOW_SPEED/2);
-                        set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
-                    }
-                } else {
-                    set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
-                    set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
-                }
-            } else {
-                set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-                set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+                mowstate = mowstate_running_downhill;
             }
             if(soc < TURN_OFF_DISC_SOC) {
                 set_motor_speed(MOTOR_SPINDLE, 0);
@@ -204,6 +192,32 @@ void mow_state(void) {
             if(soc < GO_TO_CHARGE_STATION_SOC) {
                 findhome = true;
             }
+            break;
+        case mowstate_running_downhill:
+            tiltcount = 0;
+            set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
+            // If mower is going downhill go slow and make sure it does not go straight downhill
+            roll = get_roll();
+            pitch = get_pitch();
+            if(pitch > 0) {
+                mowstate = mowstate_running;
+            } else {
+                if(abs(pitch) > abs(roll)) {
+                    if(roll > 0) {
+                        set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+                        set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED/2);
+                    } else {
+                        set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED/2);
+                        set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
+                    }
+                } else {
+                    set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+                    set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
+                }
+            }
+            checksensors(false);
             break;
         case mowstate_refind_wire:
             if(systimer_is_expired(&timeouttimer)) {
