@@ -188,12 +188,12 @@ void mow_state(void) {
                         set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
                     }
                 } else {
-                    set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-                    set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+                    set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
+                    set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
                 }
             } else {
-                set_motor_speed(MOTOR_RIGHT, SLOW_SPEED);
-                set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
+                set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
+                set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             }
             if(soc < TURN_OFF_DISC_SOC) {
                 set_motor_speed(MOTOR_SPINDLE, 0);

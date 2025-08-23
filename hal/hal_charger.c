@@ -89,7 +89,7 @@ uint8_t get_battery_soc(void) {
 }
 
 #define CHARGE_CURRENT_OFFSET 256
-#define CHARGE_CURRENT_MICROAMPS_PER_BIT 2240
+#define CHARGE_CURRENT_MICROAMPS_PER_BIT 896 // 2240
 // return charge current in mA
 uint32_t get_charge_current(void) {
   uint32_t res;
