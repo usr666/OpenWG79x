@@ -204,16 +204,11 @@ void mow_state(void) {
             if(pitch > 0) {
                 mowstate = mowstate_running;
             } else {
-                if(abs(pitch) > abs(roll)) {
-                    if(roll > 0) {
-                        set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
-                        set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED/2);
-                    } else {
-                        set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED/2);
-                        set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
-                    }
-                } else {
+                if(roll > 0) {
                     set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+                    set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED/2);
+                } else {
+                    set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED/2);
                     set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
                 }
             }
