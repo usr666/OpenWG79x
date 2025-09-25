@@ -151,6 +151,7 @@ void mow_state(void) {
     uint8_t soc;
     static bool last_left_sensor_inside, last_right_sensor_inside;
     bool left_sensor_inside, right_sensor_inside;
+    static bool downhill_turnleft;
     batteryvoltage = get_battery_voltage();
     soc = get_battery_soc();
 
@@ -193,6 +194,11 @@ void mow_state(void) {
             pitch = get_pitch();
             if(pitch < -9) {
                 mowstate = mowstate_running_downhill;
+                if(roll > 0) {
+                    downhill_turnleft = true;
+                } else {
+                    downhill_turnleft = false;
+                }
             }
             if(soc < TURN_OFF_DISC_SOC) {
                 set_motor_speed(MOTOR_SPINDLE, 0);
@@ -208,18 +214,23 @@ void mow_state(void) {
             tiltcount = 0;
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
-            set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
-            // If mower is going downhill go slow and make sure it does not go straight downhill
+            // If mower is going downhill then turn around to avoid getting stuck at end of slope
             roll = get_roll();
             pitch = get_pitch();
             if(pitch > 0) {
                 mowstate = mowstate_running;
             } else {
-                if(roll > 0) {
+                // Change turn direction?
+                if(roll > 9) {
+                    downhill_turnleft = true;
+                } else if(roll <-9) {
+                    downhill_turnleft = false;
+                }
+                if(downhill_turnleft) {
                     set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
-                    set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED/2);
+                    set_motor_speed(MOTOR_LEFT, -INTERMEDIATE_SPEED/2);
                 } else {
-                    set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED/2);
+                    set_motor_speed(MOTOR_RIGHT, -INTERMEDIATE_SPEED/2);
                     set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
                 }
             }
@@ -360,7 +371,6 @@ void mow_state(void) {
         case mowstate_wire_found:
             systimer_start(&timeouttimer, TIME_BEFORE_MAX_TURN_IN_FIND_WIRE_MS);
             mowstate = mowstate_wire_found_slowturn;
-            wire_found_count = 0;
             break;
         case mowstate_wire_found_slowturn:
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
@@ -456,8 +466,6 @@ void mow_state(void) {
                 }
             }
             break;
-
-
     }
     last_left_sensor_inside = left_sensor_inside;
     last_right_sensor_inside = right_sensor_inside;
