@@ -38,7 +38,7 @@ void set_text_size(uint8_t size) {
     } while ( u8g_NextPage(&u8g) );        
 }
 
-void print_text(uint8_t row, char *str) {
+void print_text(uint8_t row, const char *str) {
     if(row < NUMBER_OF_ROWS) {
         strncpy(textStr[row], str, CHARS_PER_ROW);
     }

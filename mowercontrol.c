@@ -9,13 +9,18 @@
 #include "hal/hal_power.h"
 #include "display.h"
 #include "debugmenu.h"
+#include "menu.h"
 
 static char *stopreason;
 static bool mowing = false;
+bool avoid_downhill = true;
+
+
 
 typedef enum {
     mainstate_idle = 0,
     mainstate_debug,
+    mainstate_menu,
     mainstate_mow,
     mainstate_startcharge,
     mainstate_charging,
@@ -94,7 +99,7 @@ static void print_init_menu(void)
     sprintf(buffer, "%2ld.%1ldV %2d%%", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc());
     print_text(0, buffer);
     print_text(1, "Press START to mow");
-    print_text(2, "Press 2 to debug");
+    print_text(2, "OK=Settings 2=Debug");
     sprintf(buffer, "%ld", systick_cnt);
     print_text(3, buffer);
 }
@@ -192,7 +197,7 @@ void mow_state(void) {
             set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             roll = get_roll();
             pitch = get_pitch();
-            if(pitch < -9) {
+            if(avoid_downhill && pitch < -9) {
                 mowstate = mowstate_running_downhill;
                 if(roll > 0) {
                     downhill_turnleft = true;
@@ -499,7 +504,7 @@ void task_mowercontrol(void) {
                 mainstate = mainstate_startcharge;
             }
             if(lastpressedkey == KEY_NONE) {
-                if(currentpressedkey==KEY2) {
+                if(currentpressedkey == KEY2) {
                     clear_display();
                     init_debugmenu();
                     mainstate = mainstate_debug;
@@ -514,6 +519,11 @@ void task_mowercontrol(void) {
                     mainstate = mainstate_mow;
                     mowstate = mowstate_startmow;
                 }
+                if(currentpressedkey == KEYOK) {
+                    clear_display();
+                    init_menu();
+                    mainstate = mainstate_menu;
+                }
             }
             break;
         case mainstate_mow:
@@ -527,6 +537,14 @@ void task_mowercontrol(void) {
                 mainstate = mainstate_idle;
             }
             break;
+        case mainstate_menu:
+            if(is_menu_active()) {
+                task_menu();
+            } else {
+                clear_display();
+                mainstate = mainstate_idle;
+            }
+            break;            
         case mainstate_startcharge:
             stop_all_motors();
             set_charger_initiate(true);
