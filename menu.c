@@ -4,18 +4,12 @@
 #include "hal/hal_keyboard.h"
 #include "display.h"
 #include "mowercontrol.h"
+#include "scheduler.h"
 
 #define NUM_MENULEVELS 3
 static uint8_t menulevel, menuindex[NUM_MENULEVELS];
 
 static bool menuactive;
-
-//debug: todo: move to scheduler
-static bool schedule_active = true; 
-static uint8_t schedule_starttime=0;
-static uint8_t schedule_endtime=8;
-static uint8_t currenttime_hour=0;
-static uint8_t currenttime_minute=0;
 
 static keys_t lastpressedkey;
 
@@ -168,12 +162,12 @@ void task_menu(void) {
                         case 0:
                             menu_line0 = "Set hour";
                             if(menulevel == 2) {
-                                intvalue = currenttime_hour;
+                                intvalue = get_current_hour();
                                 menulevel++;
                             }
                             if(handle_int(lastpressedkey, currentpressedkey, &intvalue, 0, 23, &save)) {
                                 if(save) {
-                                    currenttime_hour = intvalue;
+                                    set_current_hour(intvalue);
                                 }
                                 menulevel -= 2;
                             }
@@ -183,12 +177,12 @@ void task_menu(void) {
                         case 1:
                             menu_line0 = "Set minute";
                             if(menulevel == 2) {
-                                intvalue = currenttime_minute;
+                                intvalue = get_current_minute();
                                 menulevel++;
                             }
                             if(handle_int(lastpressedkey, currentpressedkey, &intvalue, 0, 59, &save)) {
                                 if(save) {
-                                    currenttime_minute = intvalue;
+                                    set_current_minute(intvalue);
                                 }
                                 menulevel -= 2;
                             }

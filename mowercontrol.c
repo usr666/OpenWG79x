@@ -10,6 +10,7 @@
 #include "display.h"
 #include "debugmenu.h"
 #include "menu.h"
+#include "scheduler.h"
 
 static char *stopreason;
 static bool mowing = false;
@@ -96,7 +97,7 @@ static void print_init_menu(void)
     char buffer[64];
     uint32_t batteryvoltage;
     batteryvoltage = get_battery_voltage();
-    sprintf(buffer, "%2ld.%1ldV %2d%%", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc());
+    sprintf(buffer, "%2ld.%1ldV %2d%% %2d:%2d", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc(), get_current_hour(), get_current_minute());
     print_text(0, buffer);
     print_text(1, "Press START to mow");
     print_text(2, "OK=Settings 2=Debug");
@@ -211,7 +212,7 @@ void mow_state(void) {
                 set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
             }
             checksensors(false);
-            if(soc < GO_TO_CHARGE_STATION_SOC) {
+            if(soc < GO_TO_CHARGE_STATION_SOC || !in_schedule_time()) {
                 findhome = true;
             }
             break;
@@ -579,9 +580,13 @@ void task_mowercontrol(void) {
             if(get_charge_complete()) {
                 set_charger_initiate(false);
                 if(mowing) {
-                    mainstate = mainstate_mow;
-                    findhome = false;
-                    mowstate = mowstate_start_after_charge;
+                    if(in_schedule_time()) {
+                        mainstate = mainstate_mow;
+                        findhome = false;
+                        mowstate = mowstate_start_after_charge;
+                    } else {
+                        print_text(0, "Wait for schedule");
+                    }
                 } else {
                     mainstate = mainstate_stopped;
                     stopreason = "Charge complete";

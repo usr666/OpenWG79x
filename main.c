@@ -9,6 +9,7 @@
 #include "system.h"
 #include "display.h"
 #include "mowercontrol.h"
+#include "scheduler.h"
 
 int main(void) {
   init_hal();
@@ -21,6 +22,7 @@ int main(void) {
   init_display();
   set_backlight(true);
   init_hal_motor();
+  init_scheduler();
   init_mowercontrol();
 
   // Wait until power button is released
@@ -36,6 +38,7 @@ int main(void) {
     task_display();
     task_keyboard();
     task_motor();
+    task_scheduler();
     task_mowercontrol();
 
     if(get_power_button()) {
