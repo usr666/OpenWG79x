@@ -93,7 +93,7 @@ void task_menu(void) {
     if(menulevel == 0) {
         menu_line0 = "Settings";
         menu_line1 = menu0settings_items[menuindex[0]];
-        numitems_on_this_level = 3;
+        numitems_on_this_level = 4;
     } else {
         switch(menuindex[0]) {
             case 0:
