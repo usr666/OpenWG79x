@@ -14,9 +14,8 @@
 
 static char *stopreason;
 static bool mowing = false;
-bool avoid_downhill = true;
-
-
+bool avoid_downhill = false;
+bool sideways_down = true;
 
 typedef enum {
     mainstate_idle = 0,
@@ -51,7 +50,8 @@ typedef enum {
     mowstate_refind_wire,
     mowstate_start_after_charge,
     mowstate_start_after_charge_2,
-    mowstate_tilted
+    mowstate_tilted,
+    mowstate_sideways_downhill
 }mowstate_t;
 static mowstate_t mowstate;
 static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
@@ -205,6 +205,13 @@ void mow_state(void) {
                 } else {
                     downhill_turnleft = false;
                 }
+            } else if(sideways_down && pitch < -9) {
+                mowstate = mowstate_sideways_downhill;
+                if(roll > 0) {
+                    downhill_turnleft = true;
+                } else {
+                    downhill_turnleft = false;
+                }
             }
             if(soc < TURN_OFF_DISC_SOC) {
                 set_motor_speed(MOTOR_SPINDLE, 0);
@@ -242,6 +249,32 @@ void mow_state(void) {
             }
             checksensors(false);
             break;
+        case mowstate_sideways_downhill:
+            tiltcount = 0;
+            set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            // If mower is going downhill then turn around to avoid getting stuck at end of slope
+            roll = get_roll();
+            pitch = get_pitch();
+            if(pitch > 0) {
+                mowstate = mowstate_running;
+            } else {
+                // Change turn direction?
+                if(roll > 9) {
+                    downhill_turnleft = true;
+                } else if(roll <-9) {
+                    downhill_turnleft = false;
+                }
+                if(downhill_turnleft) {
+                    set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED);
+                    set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED/2);
+                } else {
+                    set_motor_speed(MOTOR_RIGHT, INTERMEDIATE_SPEED/2);
+                    set_motor_speed(MOTOR_LEFT, INTERMEDIATE_SPEED);
+                }
+            }
+            checksensors(false);
+            break;            
         case mowstate_refind_wire:
             if(systimer_is_expired(&timeouttimer)) {
                 mowstate = mowstate_running;

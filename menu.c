@@ -86,7 +86,7 @@ void task_menu(void) {
     keys_t currentpressedkey;
     currentpressedkey = get_pressed_key();
     const char *menu_line0, *menu_line1;
-    static const char *menu0settings_items[] = {"Schedule", "Set Time", "Avoid downhill"};
+    static const char *menu0settings_items[] = {"Schedule", "Set Time", "Go sideways down", "Avoid downhill"};
     static const char *menu1schedule_items[] = {"Status", "Starttime", "Endtime"};
     static const char *menu1settime_items[] = {"Set hour", "Set minutes"};
 
@@ -193,6 +193,21 @@ void task_menu(void) {
                 }
                 break;
             case 2:
+                menu_line0 = "Go sideways down";
+                enable_menunavigation = false;
+                if(menulevel == 1) {
+                    boolvalue = sideways_down;
+                    menulevel++;
+                }
+                if(handle_bool(lastpressedkey, currentpressedkey, &boolvalue, &save)) {
+                    if(save) {
+                        sideways_down = boolvalue;
+                    }
+                    menulevel -= 2;
+                }
+                menu_line1 = boolvalue ? "Active" : "Not active";
+                break;
+            case 3:
                 menu_line0 = "Avoid downhill";
                 enable_menunavigation = false;
                 if(menulevel == 1) {
