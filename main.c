@@ -6,6 +6,7 @@
 #include "hal/hal_power.h"
 #include "hal/hal_motor.h"
 #include "hal/hal_charger.h"
+#include "hal/hal_rtc.h"
 #include "system.h"
 #include "display.h"
 #include "mowercontrol.h"
@@ -13,6 +14,7 @@
 
 int main(void) {
   init_hal();
+  init_rtc();
   init_hal_adc();
   init_hal_power();
   init_hal_display();

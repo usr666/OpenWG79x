@@ -7,6 +7,7 @@
 #include "hal/hal_motor.h"
 #include "hal/hal_charger.h"
 #include "hal/hal_power.h"
+#include "hal/hal_rtc.h"
 #include "display.h"
 #include "debugmenu.h"
 #include "menu.h"
@@ -97,7 +98,7 @@ static void print_init_menu(void)
     char buffer[64];
     uint32_t batteryvoltage;
     batteryvoltage = get_battery_voltage();
-    sprintf(buffer, "%2ld.%1ldV %2d%% %2d:%2d", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc(), get_current_hour(), get_current_minute());
+    sprintf(buffer, "%2ld.%1ldV %2d%% %02d:%02d", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc(), get_rtc_hour(), get_rtc_minute());
     print_text(0, buffer);
     print_text(1, "Press START to mow");
     print_text(2, "OK=Settings 2=Debug");

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "hal/hal_keyboard.h"
+#include "hal/hal_rtc.h"
 #include "display.h"
 #include "mowercontrol.h"
 #include "scheduler.h"
@@ -162,12 +163,12 @@ void task_menu(void) {
                         case 0:
                             menu_line0 = "Set hour";
                             if(menulevel == 2) {
-                                intvalue = get_current_hour();
+                                intvalue = get_rtc_hour();
                                 menulevel++;
                             }
                             if(handle_int(lastpressedkey, currentpressedkey, &intvalue, 0, 23, &save)) {
                                 if(save) {
-                                    set_current_hour(intvalue);
+                                    set_rtc_hour(intvalue);
                                 }
                                 menulevel -= 2;
                             }
@@ -177,12 +178,12 @@ void task_menu(void) {
                         case 1:
                             menu_line0 = "Set minute";
                             if(menulevel == 2) {
-                                intvalue = get_current_minute();
+                                intvalue = get_rtc_minute();
                                 menulevel++;
                             }
                             if(handle_int(lastpressedkey, currentpressedkey, &intvalue, 0, 59, &save)) {
                                 if(save) {
-                                    set_current_minute(intvalue);
+                                    set_rtc_minute(intvalue);
                                 }
                                 menulevel -= 2;
                             }
