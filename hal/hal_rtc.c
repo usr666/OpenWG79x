@@ -2,8 +2,8 @@
 #include <LPC17xx.h>
 
 void init_rtc(void) {
-    LPC_SC->PCONP |= (1 << 9); // Power RTC
-    LPC_RTC->CCR = 0x10; // Enable clock from 32kHz oscillator
+    LPC_RTC->CALIBRATION = 0x00000000UL;
+    LPC_RTC->CCR = 0x11;
 }
 
 uint8_t get_rtc_hour(void) {
@@ -15,15 +15,15 @@ uint8_t get_rtc_minute(void) {
 }
 
 void set_rtc_hour(uint8_t h) {
-    LPC_RTC->CCR &= ~0x01; // Disable RTC
+    LPC_RTC->CCR = 0; // Disable RTC
     LPC_RTC->HOUR = h;
-    LPC_RTC->CCR |= 0x01; // Enable RTC
+    LPC_RTC->CCR |= 0x11; // Enable RTC
 }
 
 void set_rtc_minute(uint8_t m) {
-    LPC_RTC->CCR &= ~0x01; // Disable RTC
+    LPC_RTC->CCR = 0; // Disable RTC
     LPC_RTC->MIN = m;
-    LPC_RTC->CCR |= 0x01; // Enable RTC
+    LPC_RTC->CCR |= 0x11; // Enable RTC
 }
 
 uint8_t get_rtc_second(void) {
