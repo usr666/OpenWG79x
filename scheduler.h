@@ -4,6 +4,7 @@
 void init_scheduler(void);
 void task_scheduler(void);
 bool in_schedule_time(void);
+void store_settings(void);
 
 extern bool schedule_active;
 extern uint8_t schedule_starttime;

@@ -525,6 +525,7 @@ void task_mowercontrol(void) {
 
     if(soc <= POWER_OFF_SOC && get_charger_connected()==false) {
         if(systimer_is_expired(&lowsocpowerofftimer)) {
+            store_settings();
             poweroff();
         }
     } else {
@@ -646,6 +647,7 @@ void task_mowercontrol(void) {
             break;
         case mainstate_stopped_2:
             if(systimer_is_expired(&stoppedstate_timer)) {
+                store_settings();
                 poweroff();
             }
             if(lastpressedkey==KEY_NONE && currentpressedkey==KEYBACK) {

@@ -7,10 +7,38 @@
 #include "hal/hal_motor.h"
 #include "hal/hal_charger.h"
 #include "hal/hal_rtc.h"
+#include "hal/hal_nvm.h"
 #include "system.h"
 #include "display.h"
 #include "mowercontrol.h"
 #include "scheduler.h"
+
+static void load_settings(void)
+{
+    uint8_t nvm_buffer[16];
+
+    if (hal_nvm_load(nvm_buffer)) {
+        schedule_active = (nvm_buffer[0] & 0x01) != 0;
+        sideways_down = (nvm_buffer[0] & 0x02) != 0;
+        avoid_downhill = (nvm_buffer[0] & 0x04) != 0;
+        schedule_starttime = nvm_buffer[1];
+        schedule_endtime = nvm_buffer[2];
+    }
+}
+
+void store_settings(void)
+{
+    uint8_t nvm_buffer[16] = {0};
+
+    nvm_buffer[0] = 0;
+    if (schedule_active) nvm_buffer[0] |= 0x01;
+    if (sideways_down) nvm_buffer[0] |= 0x02;
+    if (avoid_downhill) nvm_buffer[0] |= 0x04;
+    nvm_buffer[1] = schedule_starttime;
+    nvm_buffer[2] = schedule_endtime;
+
+    hal_nvm_store(nvm_buffer);
+}
 
 int main(void) {
   init_hal();
@@ -26,6 +54,8 @@ int main(void) {
   init_hal_motor();
   init_scheduler();
   init_mowercontrol();
+
+  load_settings();
 
   // Wait until power button is released
   while(get_power_button()) {
@@ -44,6 +74,8 @@ int main(void) {
     task_mowercontrol();
 
     if(get_power_button()) {
+      store_settings();
+
       print_text(1, "poweroff");
       poweroff();
       set_backlight(false);
