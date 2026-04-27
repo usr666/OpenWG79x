@@ -25,6 +25,7 @@ typedef enum {
     mainstate_mow,
     mainstate_startcharge,
     mainstate_charging,
+    mainstate_wait_for_schedule,
     mainstate_stopped,
     mainstate_stopped_2,
     mainstate_number_of_states
@@ -614,17 +615,23 @@ void task_mowercontrol(void) {
             if(get_charge_complete()) {
                 set_charger_initiate(false);
                 if(mowing) {
-                    if(in_schedule_time()) {
-                        mainstate = mainstate_mow;
-                        findhome = false;
-                        mowstate = mowstate_start_after_charge;
-                    } else {
-                        print_text(0, "Wait for schedule");
-                    }
+                    mainstate = mainstate_wait_for_schedule;
                 } else {
                     mainstate = mainstate_stopped;
                     stopreason = "Charge complete";
                 }
+            }
+            break;
+        case mainstate_wait_for_schedule:
+            clear_display();
+            print_text(0, "Wait for schedule");
+            if(lastpressedkey==KEY_NONE && currentpressedkey==KEYBACK) {
+                mainstate = mainstate_idle;
+            }
+            if(in_schedule_time()) {
+                mainstate = mainstate_mow;
+                findhome = false;
+                mowstate = mowstate_start_after_charge;
             }
             break;
         case mainstate_stopped:
