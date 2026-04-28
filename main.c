@@ -13,17 +13,17 @@
 #include "mowercontrol.h"
 #include "scheduler.h"
 
-static void load_settings(void)
+static void load_settings(bool *was_stopped, uint8_t *stopreason)
 {
     uint8_t nvm_buffer[16];
-
-    if (hal_nvm_load(nvm_buffer)) {
-        schedule_active = (nvm_buffer[0] & 0x01) != 0;
-        sideways_down = (nvm_buffer[0] & 0x02) != 0;
-        avoid_downhill = (nvm_buffer[0] & 0x04) != 0;
-        schedule_starttime = nvm_buffer[1];
-        schedule_endtime = nvm_buffer[2];
-    }
+    if (!hal_nvm_load(nvm_buffer)) { return; }
+    schedule_active = (nvm_buffer[0] & 0x01) != 0;
+    sideways_down = (nvm_buffer[0] & 0x02) != 0;
+    avoid_downhill = (nvm_buffer[0] & 0x04) != 0;
+    schedule_starttime = nvm_buffer[1];
+    schedule_endtime = nvm_buffer[2];
+    *was_stopped = (nvm_buffer[0] & 0x08) != 0;
+    *stopreason = nvm_buffer[3];
 }
 
 void store_settings(void)
@@ -31,16 +31,21 @@ void store_settings(void)
     uint8_t nvm_buffer[16] = {0};
 
     nvm_buffer[0] = 0;
-    if (schedule_active) nvm_buffer[0] |= 0x01;
-    if (sideways_down) nvm_buffer[0] |= 0x02;
-    if (avoid_downhill) nvm_buffer[0] |= 0x04;
+    if (schedule_active)             nvm_buffer[0] |= 0x01;
+    if (sideways_down)               nvm_buffer[0] |= 0x02;
+    if (avoid_downhill)              nvm_buffer[0] |= 0x04;
+    if (is_stopped)                  nvm_buffer[0] |= 0x08;
     nvm_buffer[1] = schedule_starttime;
     nvm_buffer[2] = schedule_endtime;
+    nvm_buffer[3] = stopreason;
 
     hal_nvm_store(nvm_buffer);
 }
 
 int main(void) {
+  bool was_stopped = false;
+  uint8_t stopreason = 0U;
+
   init_hal();
   init_rtc();
   init_hal_adc();
@@ -53,9 +58,9 @@ int main(void) {
   set_backlight(true);
   init_hal_motor();
   init_scheduler();
-  init_mowercontrol();
 
-  load_settings();
+  load_settings(&was_stopped, &stopreason);
+  init_mowercontrol(was_stopped, stopreason);
 
   // Wait until power button is released
   while(get_power_button()) {

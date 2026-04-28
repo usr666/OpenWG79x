@@ -13,7 +13,19 @@
 #include "menu.h"
 #include "scheduler.h"
 
-static char *stopreason;
+#define NUMBER_OF_STOPREASONS 7
+static const char *stopreason_text[NUMBER_OF_STOPREASONS] = {
+    "power on",
+    "Stopbtn pressed",
+    "Out of area",
+    "Mower tilted",
+    "Timeout in turn",
+    "Charger disconnected",
+    "Charge complete"
+};
+
+uint8_t stopreason;
+bool is_stopped = false;
 static bool mowing = false;
 bool avoid_downhill = false;
 bool sideways_down = true;
@@ -87,9 +99,9 @@ static uint8_t tiltcount;
 
 
 
-void init_mowercontrol(void) {
-    mainstate=mainstate_idle;
-    stopreason="power on";
+void init_mowercontrol(bool start_stopped, uint8_t reason_code) {
+    stopreason = reason_code;
+    mainstate = start_stopped ? mainstate_stopped : mainstate_idle;
     findhome = false;
     systimer_start(&lowsocpowerofftimer, TIME_IN_LOW_SOC_BEFORE_POWEROFF);
 }
@@ -175,7 +187,7 @@ void mow_state(void) {
 
     if(get_sensor(SENSOR_STOPBTN)) {
         mainstate = mainstate_stopped;
-        stopreason="Stopbtn pressed";
+        stopreason = 1;
         return;
     }
     left_sensor_inside = get_sensor(SENSOR_LEFT_WIRE_INSIDE);
@@ -185,7 +197,7 @@ void mow_state(void) {
         case mowstate_startmow:
             if(right_sensor_inside == false || left_sensor_inside == false) {
                 mainstate = mainstate_stopped;
-                stopreason = "Out of area";
+                stopreason = 2;
             } else {
                 mowstate = mowstate_running;
                 mowing = true;
@@ -301,14 +313,14 @@ void mow_state(void) {
             }
             if(systimer_is_expired(&timeouttimer)) {
                 mainstate = mainstate_stopped;
-                stopreason = "Out of area";
+                stopreason = 2;
             }
             break;
         case mowstate_tilted:
             if(tiltcount++ < 1) {
                 mowstate = mowstate_backoff;
             } else {
-                stopreason = "Mower tilted";
+                stopreason = 3;
                 mainstate = mainstate_stopped;
             }
             break;
@@ -337,7 +349,7 @@ void mow_state(void) {
                 if(othersensor == false) {
                     if(systimer_is_expired(&timeouttimer)) {
                         mainstate = mainstate_stopped;
-                        stopreason = "Timeout in turn";
+                        stopreason = 4;
                     }
                 } else {
                     set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
@@ -611,7 +623,7 @@ void task_mowercontrol(void) {
             if(get_charger_connected() == false) {
                 set_charger_initiate(false);
                 mainstate = mainstate_stopped;
-                stopreason = "Charger disconnected";
+                stopreason = 5;
             }
             if(get_charge_complete()) {
                 set_charger_initiate(false);
@@ -619,7 +631,7 @@ void task_mowercontrol(void) {
                     mainstate = mainstate_wait_for_schedule;
                 } else {
                     mainstate = mainstate_stopped;
-                    stopreason = "Charge complete";
+                    stopreason = 6;
                 }
             }
             break;
@@ -639,7 +651,9 @@ void task_mowercontrol(void) {
             stop_all_motors();
             clear_display();
             print_text(0, "Stopped");
-            print_text(1, stopreason);
+            if(stopreason < NUMBER_OF_STOPREASONS) {
+                print_text(1, stopreason_text[stopreason]);
+            }
             print_text(2, "Press back");
             mowing = false;
             systimer_start(&stoppedstate_timer, TIME_IN_STOPPED_BEFORE_POWEROFF);
@@ -659,6 +673,7 @@ void task_mowercontrol(void) {
             break;
     }
     lastpressedkey = currentpressedkey;
+    is_stopped = (mainstate == mainstate_stopped || mainstate == mainstate_stopped_2);
 
     sprintf(tmpstr, "State %d,%d", mainstate, mowstate);
     print_text(3, tmpstr);
