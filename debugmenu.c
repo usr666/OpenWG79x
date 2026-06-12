@@ -224,15 +224,15 @@ void task_debugmenu(void) {
                     taskstate = taskstate_init;
                 }
                 if(currentpressedkey==KEY1) {
-                    rightspeed=(rightspeed+10)%100;
+                    rightspeed=(rightspeed+1)%100;
                     set_motor_speed(MOTOR_RIGHT, rightspeed);
                 }
                 if(currentpressedkey==KEY2) {
-                    leftspeed=(leftspeed+10)%100;
+                    leftspeed=(leftspeed+1)%100;
                     set_motor_speed(MOTOR_LEFT, leftspeed);
                 }
                 if(currentpressedkey==KEY3) {
-                    spindlespeed=(spindlespeed+10)%100;
+                    spindlespeed=(spindlespeed+1)%100;
                     set_motor_speed(MOTOR_SPINDLE, spindlespeed);
                 }
                 if(currentpressedkey==KEY4) {
@@ -243,6 +243,18 @@ void task_debugmenu(void) {
                 }
                 if(currentpressedkey==KEY6) {
                     set_motor_speed(MOTOR_SPINDLE, 0);
+                }
+                if(currentpressedkey==KEY7) {
+                    rightspeed=(rightspeed-1)%100;
+                    set_motor_speed(MOTOR_RIGHT, rightspeed);
+                }
+                if(currentpressedkey==KEY8) {
+                    leftspeed=(leftspeed-1)%100;
+                    set_motor_speed(MOTOR_LEFT, leftspeed);
+                }
+                if(currentpressedkey==KEY9) {
+                    spindlespeed=(spindlespeed-1)%100;
+                    set_motor_speed(MOTOR_SPINDLE, spindlespeed);
                 }
             }
             break;
