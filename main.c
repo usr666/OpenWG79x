@@ -24,6 +24,9 @@ static void load_settings(bool *was_stopped, uint8_t *stopreason)
     schedule_endtime = nvm_buffer[2];
     *was_stopped = (nvm_buffer[0] & 0x08) != 0;
     *stopreason = nvm_buffer[3];
+    if(nvm_buffer[4] >= 1 && nvm_buffer[4] <= 99) {
+        circlespeed = nvm_buffer[4];
+    }
 }
 
 void store_settings(void)
@@ -38,6 +41,7 @@ void store_settings(void)
     nvm_buffer[1] = schedule_starttime;
     nvm_buffer[2] = schedule_endtime;
     nvm_buffer[3] = stopreason;
+    nvm_buffer[4] = circlespeed;
 
     hal_nvm_store(nvm_buffer);
 }

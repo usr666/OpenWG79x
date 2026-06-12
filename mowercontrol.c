@@ -29,6 +29,7 @@ bool is_stopped = false;
 static bool mowing = false;
 bool avoid_downhill = false;
 bool sideways_down = true;
+uint8_t circlespeed = 50;
 
 typedef enum {
     mainstate_idle = 0,
@@ -69,8 +70,10 @@ typedef enum {
 }mowstate_t;
 static mowstate_t mowstate;
 static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
-static bool findhome; // true if we are looking for home position
+static bool findhome;
+static bool circlecut;
 static systimer_t lowsocpowerofftimer;
+static systimer_t circlecuttimer;
 static uint8_t tiltcount;
 
 #define SLOW_SPEED      20
@@ -96,6 +99,7 @@ static uint8_t tiltcount;
 #define TILTED_ANGLE 45
 #define TIME_BEFORE_MAX_TURN_IN_FIND_WIRE_MS 2000
 #define TIME_TO_TURN_BACK_MS 300
+#define CIRCLECUT_RAMP_TIME_MS ((300000u/100u)*(circlespeed))
 
 
 
@@ -103,6 +107,7 @@ void init_mowercontrol(bool start_stopped, uint8_t reason_code) {
     stopreason = reason_code;
     mainstate = start_stopped ? mainstate_stopped : mainstate_idle;
     findhome = false;
+    circlecut = false;
     systimer_start(&lowsocpowerofftimer, TIME_IN_LOW_SOC_BEFORE_POWEROFF);
 }
 
@@ -114,7 +119,7 @@ static void print_init_menu(void)
     sprintf(buffer, "%2ld.%1ldV %2d%% %02d:%02d", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc(), get_rtc_hour(), get_rtc_minute());
     print_text(0, buffer);
     print_text(1, "Press START to mow");
-    print_text(2, "OK=Settings 2=Debug");
+    print_text(2, "OK=Set 2=Dbg 3=Circle");
     sprintf(buffer, "%ld", systick_cnt);
     print_text(3, buffer);
 }
@@ -135,13 +140,17 @@ void checksensors(bool wirefound) {
     } else if(abs(get_pitch() > TILTED_ANGLE) || abs(get_roll() > TILTED_ANGLE)) {
         stop_all_motors();
         mowstate = mowstate_tilted;
+        circlecut = false;
     } else if(get_sensor(SENSOR_LIFT)) {
         set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
         set_motor_speed(MOTOR_SPINDLE, 0);
         mowstate = mowstate_backoff;
+        circlecut = false;
     } else if(get_sensor(SENSOR_FRONT)) {
         mowstate = mowstate_backoff;
+        circlecut = false;
     } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
+        circlecut = false;
         if(findhome) {
             if(!wirefound) {
                 mowstate = mowstate_wire_found;
@@ -151,6 +160,7 @@ void checksensors(bool wirefound) {
             mowstate = mowstate_turn;
         }
     } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
+        circlecut = false;
         if(findhome) {
             if(!wirefound) {
                 mowstate = mowstate_wire_found;
@@ -168,9 +178,11 @@ void mow_state(void) {
     int roll, pitch;
     char tmpstr[20];
     uint32_t batteryvoltage;
+    uint32_t circlecut_ms;
     uint8_t soc;
     static bool last_left_sensor_inside, last_right_sensor_inside;
     bool left_sensor_inside, right_sensor_inside;
+    bool othersensor;
     static bool downhill_turnleft;
     batteryvoltage = get_battery_voltage();
     soc = get_battery_soc();
@@ -178,6 +190,8 @@ void mow_state(void) {
     clear_display();
     if(findhome) {
         print_text(0, "Finding home...");
+    } else if(circlecut) {
+        print_text(0, "Circle cutting...");
     } else {
         print_text(0, "Mowing...");
     }
@@ -202,6 +216,9 @@ void mow_state(void) {
                 mowstate = mowstate_running;
                 mowing = true;
             }
+            if(circlecut) {
+                systimer_start(&circlecuttimer, 0);
+            }
             break;
         case mowstate_running:
             tiltcount = 0;
@@ -209,7 +226,18 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
             set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
-            set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            
+            // Handle circle cutting mode with left motor ramp-up
+            if(circlecut) {
+                circlecut_ms = systimer_get_time_since_started(&circlecuttimer);
+                if(circlecut_ms >= CIRCLECUT_RAMP_TIME_MS) {
+                    circlecut = false;
+                }
+                set_motor_speed(MOTOR_LEFT, (int8_t)((circlecut_ms * DEFAULT_SPEED) / CIRCLECUT_RAMP_TIME_MS));
+            } else {
+                set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
+            }
+            
             roll = get_roll();
             pitch = get_pitch();
             if(avoid_downhill && pitch < -9) {
@@ -340,7 +368,6 @@ void mow_state(void) {
             break;
         case mowstate_turn_2:
             if(systimer_is_expired(&mowtimer)) {
-                bool othersensor;
                 if(turnleft) {
                     othersensor = right_sensor_inside;
                 } else {
@@ -557,6 +584,13 @@ void task_mowercontrol(void) {
                     clear_display();
                     init_debugmenu();
                     mainstate = mainstate_debug;
+                }
+                if(currentpressedkey == KEY3) {
+                    clear_display();
+                    findhome = false;
+                    circlecut = true;
+                    mainstate = mainstate_mow;
+                    mowstate = mowstate_startmow;
                 }
                 if(currentpressedkey == KEYSTART) {
                     findhome = false;

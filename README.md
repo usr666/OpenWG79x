@@ -36,14 +36,14 @@ Unpack downloaded file, for example with:
 sudo tar -xvf gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2 -C /opt/
 
 ## Build firmware
-Set GCCPATH variable before building, for example:
+From Windows, build from the workspace root with:
 ```
-export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
+wsl ./setupenv.sh && make
 ```
-Build with make-command:
-```
-make
-```
+
+This configures the build environment in WSL and then runs `make`.
+
+If you are already inside Linux or WSL, `setupenv.sh` sets `GCCPATH` before the build.
 
 ## Load firmware in lawnmower
 ### Option 1: Use USB-stick

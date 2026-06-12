@@ -9,6 +9,7 @@ void task_mowercontrol(void);
 
 extern bool avoid_downhill;
 extern bool sideways_down;
+extern uint8_t circlespeed;
 extern uint8_t stopreason;
 extern bool is_stopped;
 
