@@ -137,7 +137,7 @@ void stop_all_motors(void) {
 void checksensors(bool wirefound) {
     if(get_charger_connected()) {
         mainstate = mainstate_startcharge;
-    } else if(abs(get_pitch() > TILTED_ANGLE) || abs(get_roll() > TILTED_ANGLE)) {
+    } else if(abs(get_pitch()) > TILTED_ANGLE || abs(get_roll()) > TILTED_ANGLE) {
         stop_all_motors();
         mowstate = mowstate_tilted;
         circlecut = false;
