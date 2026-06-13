@@ -11,18 +11,18 @@
 #define SPINDLE_PWM_PORTNO       2
 #define SPINDLE_PWM_PINNO        2
 
-#define RIGHT_ENABLE_PORTNO      2 // Needs to be 0 for motor to run.
+#define RIGHT_ENABLE_PORTNO      2 // Needs to be 0 for motor to run and to brake.
 #define RIGHT_ENABLE_PINNO       4
-#define LEFT_ENABLE_PORTNO       2 // Inverted?: Needs to be 1 for motor to run.
+#define LEFT_ENABLE_PORTNO       2 // Inverted?: Needs to be 1 for motor to run and to brake.
 #define LEFT_ENABLE_PINNO        9
-#define SPINDLE_ENABLE_PORTNO    2 // Needs to be 0 for motor to run.
+#define SPINDLE_ENABLE_PORTNO    2 // Needs to be 0 for motor to run and to brake.
 #define SPINDLE_ENABLE_PINNO     13
 
-#define RIGHT_BRAKE_PORTNO       2 // Needs to be 1 for motor to run. 0 freewheels motor.
+#define RIGHT_BRAKE_PORTNO       2 // Needs to be 1 for motor to run. 0 brakes motor.
 #define RIGHT_BRAKE_PINNO        5
-#define LEFT_BRAKE_PORTNO        2 // Inverted? Needs to be 0 for motor to run. 1 freewheels motor.
+#define LEFT_BRAKE_PORTNO        2 // Inverted? Needs to be 0 for motor to run. 1 brakes motor.
 #define LEFT_BRAKE_PINNO         8
-#define SPINDLE_BRAKE_PORTNO     3 // Needs to be 1 for motor to run. 0 freewheels motor.
+#define SPINDLE_BRAKE_PORTNO     3 // Needs to be 1 for motor to run. 0 brakes motor.
 #define SPINDLE_BRAKE_PINNO      25
 
 #define RIGHT_DIRECTION_PORTNO   2 // 1=FORWARD, 0=BACKWARDS
@@ -32,12 +32,39 @@
 #define SPINDLE_DIRECTION_PORTNO 3
 #define SPINDLE_DIRECTION_PINNO  26
 
+#define RIGHT_PULSE_COUNT_PORTNO  2
+#define RIGHT_PULSE_COUNT_PINNO   11
+#define LEFT_PULSE_COUNT_PORTNO   2
+#define LEFT_PULSE_COUNT_PINNO    12
+
 #define PWM_COUNTER_MAXVALUE 1000 // 2kHz
 
 static uint8_t ramps[MOTOR_NUMBER_OF_MOTORS] = {100, 100, 100};
 static int8_t requestedspeed[MOTOR_NUMBER_OF_MOTORS] = {0};
 static int32_t currentspeed_times_100[MOTOR_NUMBER_OF_MOTORS] = {0};
+static volatile bool motor_direction_sign[MOTOR_NUMBER_OF_MOTORS] = {false, false, false};
+static volatile int32_t motor_pulse_count[MOTOR_NUMBER_OF_MOTORS] __attribute__((aligned(4))) = {0};
 static systimer_t ramp_timer;
+
+void __attribute__ ((interrupt)) EINT1_IRQHandler(void)
+{
+  LPC_SC->EXTINT = (1u << 1);
+  if(motor_direction_sign[MOTOR_RIGHT]) {
+    motor_pulse_count[MOTOR_RIGHT]++;
+  } else {
+    motor_pulse_count[MOTOR_RIGHT]--;
+  }
+}
+
+void __attribute__ ((interrupt)) EINT2_IRQHandler(void)
+{
+  LPC_SC->EXTINT = (1u << 2);
+  if(motor_direction_sign[MOTOR_LEFT]) {
+    motor_pulse_count[MOTOR_LEFT]++;
+  } else {
+    motor_pulse_count[MOTOR_LEFT]--;
+  }
+}
 
 void init_hal_motor(void) {
   //Start with motors disabled until pwms are initialized
@@ -68,6 +95,18 @@ void init_hal_motor(void) {
   LPC_GPIOx(LEFT_PWM_PORTNO)->FIOCLR = ( 1 << LEFT_PWM_PINNO);
   LPC_GPIOx(SPINDLE_PWM_PORTNO)->FIODIR |= ( 1 << SPINDLE_PWM_PINNO);
   LPC_GPIOx(SPINDLE_PWM_PORTNO)->FIOCLR = ( 1 << SPINDLE_PWM_PINNO);
+
+  LPC_GPIOx(RIGHT_PULSE_COUNT_PORTNO)->FIODIR &= ~(1 << RIGHT_PULSE_COUNT_PINNO);
+  LPC_GPIOx(LEFT_PULSE_COUNT_PORTNO)->FIODIR &= ~(1 << LEFT_PULSE_COUNT_PINNO);
+
+  LPC_PINCON->PINSEL4 &= ~((3u << (RIGHT_PULSE_COUNT_PINNO * 2)) | (3u << (LEFT_PULSE_COUNT_PINNO * 2)));
+  LPC_PINCON->PINSEL4 |= (1u << (RIGHT_PULSE_COUNT_PINNO * 2)) | (1u << (LEFT_PULSE_COUNT_PINNO * 2));
+
+  LPC_SC->EXTMODE |= (1u << 1) | (1u << 2);
+  LPC_SC->EXTPOLAR |= (1u << 1) | (1u << 2);
+  LPC_SC->EXTINT = (1u << 1) | (1u << 2);
+  NVIC_EnableIRQ(EINT1_IRQn);
+  NVIC_EnableIRQ(EINT2_IRQn);
 
   LPC_SC->PCONP |= (1 << 6);   // power up PWM1
 
@@ -100,6 +139,12 @@ void init_hal_motor(void) {
   LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = ( 1 << LEFT_ENABLE_PINNO);
   LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = ( 1 << SPINDLE_ENABLE_PINNO);
 
+  motor_direction_sign[MOTOR_RIGHT] = false;
+  motor_direction_sign[MOTOR_LEFT] = false;
+  motor_direction_sign[MOTOR_SPINDLE] = false;
+  motor_pulse_count[MOTOR_RIGHT] = 0;
+  motor_pulse_count[MOTOR_LEFT] = 0;
+  motor_pulse_count[MOTOR_SPINDLE] = 0;
   systimer_start(&ramp_timer, 100);
 }
 
@@ -169,10 +214,12 @@ static void update_motor_speed(void)
       speeddiff = speeddiff * ramps[i] / 100;
       currentspeed_times_100[i] += speeddiff;
 
-      if(currentspeed_times_100[i] > 0) {
+      if(currentspeed_times_100[i] >= 0) {
         setdirection(i, 0);
+        motor_direction_sign[i] = true;
       } else {
         setdirection(i, 1);
+        motor_direction_sign[i] = false;
       }
 
       setpwm(i, labs(currentspeed_times_100[i]));
@@ -183,6 +230,11 @@ static void update_motor_speed(void)
 void task_motor(void)
 {
   update_motor_speed();
+}
+
+int32_t get_motor_distance(motors_t motor)
+{
+  return motor_pulse_count[motor];
 }
 
 /* Controls the rate motor speed changes when changing motor speed. 

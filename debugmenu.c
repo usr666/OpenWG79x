@@ -12,8 +12,9 @@
 
 static bool charger_initiate = false;
 static bool charger_charge = false;
-static uint8_t rightspeed=0, leftspeed=0, spindlespeed=0;
+static int8_t rightspeed=0, leftspeed=0, spindlespeed=0;
 static bool wiresensor_mode_near = true, wiresensor_polarity = true;
+static uint8_t key4_count = 0, key5_count = 0, key6_count = 0;
 static bool menuactive;
 typedef enum {
     taskstate_init = 0,
@@ -108,11 +109,13 @@ static void print_motor_menu(void)
 {
     char buffer[64];
 
-    sprintf(buffer, "1 RIGHT   %d", rightspeed);
+    sprintf(buffer, "1 R %4d %u%u %ld", rightspeed, (uint8_t)((LPC_GPIO2->FIOPIN >> 5) & 1), (uint8_t)((LPC_GPIO2->FIOPIN >> 4) & 1), (long)get_motor_distance(MOTOR_RIGHT));
     print_text(0, buffer);
-    sprintf(buffer, "2 LEFT    %d", leftspeed);
+    
+    sprintf(buffer, "2 L %4d %u%u %ld", leftspeed, (uint8_t)((LPC_GPIO2->FIOPIN >> 8) & 1), (uint8_t)((LPC_GPIO2->FIOPIN >> 9) & 1), (long)get_motor_distance(MOTOR_LEFT));
     print_text(1, buffer);
-    sprintf(buffer, "3 SPINDLE %d", spindlespeed);
+    
+    sprintf(buffer, "3 S %4d %u%u %ld", spindlespeed, (uint8_t)((LPC_GPIO3->FIOPIN >> 25) & 1), (uint8_t)((LPC_GPIO2->FIOPIN >> 13) & 1), (long)get_motor_distance(MOTOR_SPINDLE));
     print_text(2, buffer);
 }
 
@@ -224,36 +227,75 @@ void task_debugmenu(void) {
                     taskstate = taskstate_init;
                 }
                 if(currentpressedkey==KEY1) {
-                    rightspeed=(rightspeed+1)%100;
+                    rightspeed = (rightspeed >= 100) ? -100 : rightspeed + 1;
                     set_motor_speed(MOTOR_RIGHT, rightspeed);
                 }
                 if(currentpressedkey==KEY2) {
-                    leftspeed=(leftspeed+1)%100;
+                    leftspeed = (leftspeed >= 100) ? -100 : leftspeed + 1;
                     set_motor_speed(MOTOR_LEFT, leftspeed);
                 }
                 if(currentpressedkey==KEY3) {
-                    spindlespeed=(spindlespeed+1)%100;
+                    spindlespeed = (spindlespeed >= 100) ? -100 : spindlespeed + 1;
                     set_motor_speed(MOTOR_SPINDLE, spindlespeed);
                 }
                 if(currentpressedkey==KEY4) {
-                    set_motor_speed(MOTOR_RIGHT, 0);
+                    if((LPC_GPIO2->FIOPIN >> 5) & 1) {
+                        LPC_GPIO2->FIOCLR = (1 << 5);
+                    } else {
+                        LPC_GPIO2->FIOSET = (1 << 5);
+                    }
+                    key4_count++;
+                    if(key4_count >= 2) {
+                        if((LPC_GPIO2->FIOPIN >> 4) & 1) {
+                            LPC_GPIO2->FIOCLR = (1 << 4);
+                        } else {
+                            LPC_GPIO2->FIOSET = (1 << 4);
+                        }
+                        key4_count = 0;
+                    }
                 }
                 if(currentpressedkey==KEY5) {
-                    set_motor_speed(MOTOR_LEFT, 0);
+                    if((LPC_GPIO2->FIOPIN >> 8) & 1) {
+                        LPC_GPIO2->FIOCLR = (1 << 8);
+                    } else {
+                        LPC_GPIO2->FIOSET = (1 << 8);
+                    }
+                    key5_count++;
+                    if(key5_count >= 2) {
+                        if((LPC_GPIO2->FIOPIN >> 9) & 1) {
+                            LPC_GPIO2->FIOCLR = (1 << 9);
+                        } else {
+                            LPC_GPIO2->FIOSET = (1 << 9);
+                        }
+                        key5_count = 0;
+                    }
                 }
                 if(currentpressedkey==KEY6) {
-                    set_motor_speed(MOTOR_SPINDLE, 0);
+                    if((LPC_GPIO3->FIOPIN >> 25) & 1) {
+                        LPC_GPIO3->FIOCLR = (1 << 25);
+                    } else {
+                        LPC_GPIO3->FIOSET = (1 << 25);
+                    }
+                    key6_count++;
+                    if(key6_count >= 2) {
+                        if((LPC_GPIO2->FIOPIN >> 13) & 1) {
+                            LPC_GPIO2->FIOCLR = (1 << 13);
+                        } else {
+                            LPC_GPIO2->FIOSET = (1 << 13);
+                        }
+                        key6_count = 0;
+                    }
                 }
                 if(currentpressedkey==KEY7) {
-                    rightspeed=(rightspeed-1)%100;
+                    rightspeed = (rightspeed <= -100) ? 100 : rightspeed - 1;
                     set_motor_speed(MOTOR_RIGHT, rightspeed);
                 }
                 if(currentpressedkey==KEY8) {
-                    leftspeed=(leftspeed-1)%100;
+                    leftspeed = (leftspeed <= -100) ? 100 : leftspeed - 1;
                     set_motor_speed(MOTOR_LEFT, leftspeed);
                 }
                 if(currentpressedkey==KEY9) {
-                    spindlespeed=(spindlespeed-1)%100;
+                    spindlespeed = (spindlespeed <= -100) ? 100 : spindlespeed - 1;
                     set_motor_speed(MOTOR_SPINDLE, spindlespeed);
                 }
             }
