@@ -28,7 +28,7 @@ uint8_t stopreason;
 bool is_stopped = false;
 static bool mowing = false;
 bool avoid_downhill = false;
-bool sideways_down = true;
+bool sideways_down = false;
 uint8_t circlespeed = 50;
 
 typedef enum {
@@ -99,9 +99,8 @@ static uint8_t tiltcount;
 #define TILTED_ANGLE 45
 #define TIME_BEFORE_MAX_TURN_IN_FIND_WIRE_MS 2000
 #define TIME_TO_TURN_BACK_MS 300
-#define CIRCLECUT_RAMP_TIME_MS ((300000u/100u)*(circlespeed))
-
-
+#define CIRCLECUT_SPEED_INCREASE_INTERVAL_MS 5000UL
+#define CIRCLECUT_START_SPEED 20
 
 void init_mowercontrol(bool start_stopped, uint8_t reason_code) {
     stopreason = reason_code;
@@ -178,7 +177,8 @@ void mow_state(void) {
     int roll, pitch;
     char tmpstr[20];
     uint32_t batteryvoltage;
-    uint32_t circlecut_ms;
+    uint32_t progress, curve;
+    static uint32_t circlecut_speed;
     uint8_t soc;
     static bool last_left_sensor_inside, last_right_sensor_inside;
     bool left_sensor_inside, right_sensor_inside;
@@ -217,7 +217,8 @@ void mow_state(void) {
                 mowing = true;
             }
             if(circlecut) {
-                systimer_start(&circlecuttimer, 0);
+                systimer_start(&circlecuttimer, CIRCLECUT_SPEED_INCREASE_INTERVAL_MS);
+                circlecut_speed = CIRCLECUT_START_SPEED * 1000u;
             }
             break;
         case mowstate_running:
@@ -227,13 +228,18 @@ void mow_state(void) {
             set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
             set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
             
-            // Handle circle cutting mode with left motor ramp-up
+            // Handle circle cutting mode 
             if(circlecut) {
-                circlecut_ms = systimer_get_time_since_started(&circlecuttimer);
-                if(circlecut_ms >= CIRCLECUT_RAMP_TIME_MS) {
-                    circlecut = false;
+                if(systimer_is_expired(&circlecuttimer)) {
+                    systimer_start(&circlecuttimer, CIRCLECUT_SPEED_INCREASE_INTERVAL_MS);
+                    progress = ((circlecut_speed/1000UL - CIRCLECUT_START_SPEED ) * 100) / (DEFAULT_SPEED - CIRCLECUT_START_SPEED );
+                    curve = ((uint32_t)(400u - 3u*progress) * (uint32_t)circlespeed);
+                    circlecut_speed += (uint32_t)curve / 100u;
+                    if(circlecut_speed >= DEFAULT_SPEED * 1000u) {
+                        circlecut = false;
+                    }
                 }
-                set_motor_speed(MOTOR_LEFT, (int8_t)((circlecut_ms * DEFAULT_SPEED) / CIRCLECUT_RAMP_TIME_MS));
+                set_motor_speed(MOTOR_LEFT, circlecut_speed / 1000u);
             } else {
                 set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             }

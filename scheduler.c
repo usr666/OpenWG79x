@@ -9,9 +9,9 @@ uint8_t schedule_endtime=8;
 
 void init_scheduler(void) 
 {
-    schedule_active = true;
-    schedule_starttime = 0;
-    schedule_endtime = 8;
+    schedule_active = false;
+    schedule_starttime = 8;
+    schedule_endtime = 16;
 }
 
 void task_scheduler(void)

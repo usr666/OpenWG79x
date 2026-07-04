@@ -18,15 +18,15 @@ This software does not fulfil any safety standards.
 - Bump and lift sensor detection
 - Basic wire sensors
 - Stop button
+- Storing of current state in non volatile memory
+- Scheduling
 
 ### What is not implemented/working
 - Detect when mower is stuck and wheels just spin
 - Detect when mower is stuck and just moves back and forth in a small area
 - Detect when motors are blocked and wheel/disc does not move
 - Detect motor overcurrent?
-- Scheduling (reading RTC)
 - Pin code
-- Storing of current state in non volatile memory
   
 ## Setup build environment
 Use a linux machine, for example Ubuntu 20.04.  
@@ -34,16 +34,11 @@ Install gcc-arm:
 Download gcc-arm binaries for your host computer architecture from https://developer.arm.com/downloads/-/gnu-rm/10-3-2021-10  
 Unpack downloaded file, for example with:  
 sudo tar -xvf gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2 -C /opt/
+set GCCPATH variable to point to compiler install directory, for example:
+export GCCPATH=/opt/gcc-arm-none-eabi-10.3-2021.10
 
 ## Build firmware
-From Windows, build from the workspace root with:
-```
-wsl bash -lc "source setupenv.sh && make"
-```
-
-This configures the build environment in WSL and then runs `make`.
-
-If you are already inside Linux or WSL, `setupenv.sh` sets `GCCPATH` before the build.
+type command "make" from top directory
 
 ## Load firmware in lawnmower
 ### Option 1: Use USB-stick
