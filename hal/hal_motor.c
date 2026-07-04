@@ -25,6 +25,9 @@
 #define SPINDLE_BRAKE_PORTNO     3 // Needs to be 1 for motor to run. 0 brakes motor.
 #define SPINDLE_BRAKE_PINNO      25
 
+#define BRAKE_MOTOR(x) do { if((x) == 0) LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOCLR = (1u << RIGHT_BRAKE_PINNO); else LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOSET = (1u << LEFT_BRAKE_PINNO); } while(0)
+#define RELEASE_BRAKE(x) do { if((x) == 0) LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOSET = (1u << RIGHT_BRAKE_PINNO); else LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOCLR = (1u << LEFT_BRAKE_PINNO); } while(0)
+
 #define RIGHT_DIRECTION_PORTNO   2 // 1=FORWARD, 0=BACKWARDS
 #define RIGHT_DIRECTION_PINNO    6 
 #define LEFT_DIRECTION_PORTNO    0
@@ -38,13 +41,32 @@
 #define LEFT_PULSE_COUNT_PINNO    12
 
 #define PWM_COUNTER_MAXVALUE 1000 // 2kHz
+#define MOTOR_IDLE_DISABLE_TIME_MS 10000
 
 static uint8_t ramps[MOTOR_NUMBER_OF_MOTORS] = {100, 100, 100};
 static int8_t requestedspeed[MOTOR_NUMBER_OF_MOTORS] = {0};
 static int32_t currentspeed_times_100[MOTOR_NUMBER_OF_MOTORS] = {0};
 static volatile bool motor_direction_sign[MOTOR_NUMBER_OF_MOTORS] = {false, false, false};
 static volatile int32_t motor_pulse_count[MOTOR_NUMBER_OF_MOTORS] __attribute__((aligned(4))) = {0};
-static systimer_t ramp_timer;
+static int32_t motor_prev_pulse_count[MOTOR_NUMBER_OF_MOTORS] = {0};
+static int32_t motor_speed_steps[MOTOR_NUMBER_OF_MOTORS] = {0};
+static systimer_t motor_speed_timer;
+static uint16_t motor_idle_ticks = 0;
+static bool motors_enabled = false;
+
+static void set_all_motors_enabled(bool enabled)
+{
+  if(enabled) {
+    LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOCLR = (1u << RIGHT_ENABLE_PINNO);
+    LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = (1u << LEFT_ENABLE_PINNO);
+    LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = (1u << SPINDLE_ENABLE_PINNO);
+  } else {
+    LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOSET = (1u << RIGHT_ENABLE_PINNO);
+    LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOCLR = (1u << LEFT_ENABLE_PINNO);
+    LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOSET = (1u << SPINDLE_ENABLE_PINNO);
+  }
+  motors_enabled = enabled;
+}
 
 void __attribute__ ((interrupt)) EINT1_IRQHandler(void)
 {
@@ -135,9 +157,7 @@ void init_hal_motor(void) {
   }
 
   // Enable motors now that pwm is enabled.
-  LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOCLR = ( 1 << RIGHT_ENABLE_PINNO);
-  LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = ( 1 << LEFT_ENABLE_PINNO);
-  LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = ( 1 << SPINDLE_ENABLE_PINNO);
+  set_all_motors_enabled(true);
 
   motor_direction_sign[MOTOR_RIGHT] = false;
   motor_direction_sign[MOTOR_LEFT] = false;
@@ -145,7 +165,7 @@ void init_hal_motor(void) {
   motor_pulse_count[MOTOR_RIGHT] = 0;
   motor_pulse_count[MOTOR_LEFT] = 0;
   motor_pulse_count[MOTOR_SPINDLE] = 0;
-  systimer_start(&ramp_timer, 100);
+  systimer_start(&motor_speed_timer, 100);
 }
 
 static void setdirection(motors_t motor, uint8_t value)
@@ -200,15 +220,51 @@ static void setpwm(motors_t motor, uint32_t value_times_100)
 
 }
 
+#define PULSES_PER_100MS_AT_100_PERCENT_SPEED 19
 static void update_motor_speed(void)
 {
   bool timer_expired = false;
-  if(systimer_is_expired(&ramp_timer)) {
+  bool any_requested_speed = false;
+  
+  if(systimer_is_expired(&motor_speed_timer)) {
     timer_expired = true;
-    systimer_start(&ramp_timer, 100);
+    systimer_start(&motor_speed_timer, 100);
+  }
+
+  // Disable motors if all motors are off for a while
+  for(uint8_t i=0 ; i < MOTOR_NUMBER_OF_MOTORS ; i++) {
+    if(requestedspeed[i] != 0) {
+      any_requested_speed = true;
+      break;
+    }
+  }
+  if(any_requested_speed) {
+    if(!motors_enabled) {
+      set_all_motors_enabled(true);
+    }
+    motor_idle_ticks = 0;
+  } else if(timer_expired && motor_idle_ticks < (MOTOR_IDLE_DISABLE_TIME_MS / 100)) {
+    motor_idle_ticks++;
+    if(motor_idle_ticks >= (MOTOR_IDLE_DISABLE_TIME_MS / 100) && motors_enabled) {
+      set_all_motors_enabled(false);
+    }
   }
 
   for(uint8_t i=0 ; i < MOTOR_NUMBER_OF_MOTORS ; i++) {
+    // Measure motor speed
+    if(timer_expired) {
+      motor_speed_steps[i] = motor_pulse_count[i] - motor_prev_pulse_count[i];
+      motor_prev_pulse_count[i] = motor_pulse_count[i];
+    }
+    // Brake wheel motors if going too fast forward (downhill)
+    if(i != MOTOR_SPINDLE && currentspeed_times_100[i] >= 0) {
+      if(motor_pulse_count[i] - motor_prev_pulse_count[i] > (PULSES_PER_100MS_AT_100_PERCENT_SPEED * (uint32_t)currentspeed_times_100 / 100)) {
+        BRAKE_MOTOR(i);
+      } else {
+        RELEASE_BRAKE(i);
+      }
+    }
+    // Control motor speed ramps
     if(timer_expired || ramps[i] == 100) {
       int32_t speeddiff = ((int32_t)requestedspeed[i] * 100) - currentspeed_times_100[i];
       speeddiff = speeddiff * ramps[i] / 100;
@@ -235,6 +291,11 @@ void task_motor(void)
 int32_t get_motor_distance(motors_t motor)
 {
   return motor_pulse_count[motor];
+}
+
+int32_t get_motor_speed(motors_t motor)
+{
+  return motor_speed_steps[motor];
 }
 
 /* Controls the rate motor speed changes when changing motor speed. 

@@ -108,7 +108,7 @@ static void print_adc_menu(void)
 static void print_motor_menu(void)
 {
     char buffer[64];
-
+    
     sprintf(buffer, "1 R %4d %u%u %ld", rightspeed, (uint8_t)((LPC_GPIO2->FIOPIN >> 5) & 1), (uint8_t)((LPC_GPIO2->FIOPIN >> 4) & 1), (long)get_motor_distance(MOTOR_RIGHT));
     print_text(0, buffer);
     

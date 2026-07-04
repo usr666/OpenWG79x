@@ -38,7 +38,7 @@ sudo tar -xvf gcc-arm-none-eabi-10.3-2021.10-aarch64-linux.tar.bz2 -C /opt/
 ## Build firmware
 From Windows, build from the workspace root with:
 ```
-wsl ./setupenv.sh && make
+wsl bash -lc "source setupenv.sh && make"
 ```
 
 This configures the build environment in WSL and then runs `make`.
