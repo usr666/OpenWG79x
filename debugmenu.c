@@ -169,6 +169,7 @@ void task_debugmenu(void) {
                 }
                 if(currentpressedkey==KEY3) {
                     clear_display();
+                    motor_debug_mode(true);
                     taskstate = taskstate_debugmotors;
                 }
                 if(currentpressedkey==KEY4) {
@@ -224,6 +225,7 @@ void task_debugmenu(void) {
             if(lastpressedkey==KEY_NONE) {
                 if(currentpressedkey==KEYBACK) {
                     clear_display();
+                    motor_debug_mode(false);
                     taskstate = taskstate_init;
                 }
                 if(currentpressedkey==KEY1) {

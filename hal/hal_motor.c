@@ -24,10 +24,6 @@
 #define LEFT_BRAKE_PINNO         8
 #define SPINDLE_BRAKE_PORTNO     3 // Needs to be 1 for motor to run. 0 brakes motor.
 #define SPINDLE_BRAKE_PINNO      25
-
-#define BRAKE_MOTOR(x) do { if((x) == 0) LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOCLR = (1u << RIGHT_BRAKE_PINNO); else LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOSET = (1u << LEFT_BRAKE_PINNO); } while(0)
-#define RELEASE_BRAKE(x) do { if((x) == 0) LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOSET = (1u << RIGHT_BRAKE_PINNO); else LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOCLR = (1u << LEFT_BRAKE_PINNO); } while(0)
-
 #define RIGHT_DIRECTION_PORTNO   2 // 1=FORWARD, 0=BACKWARDS
 #define RIGHT_DIRECTION_PINNO    6 
 #define LEFT_DIRECTION_PORTNO    0
@@ -53,19 +49,42 @@ static int32_t motor_speed_steps[MOTOR_NUMBER_OF_MOTORS] = {0};
 static systimer_t motor_speed_timer;
 static uint16_t motor_idle_ticks = 0;
 static bool motors_enabled = false;
+static bool motor_debug_mode_active = false;
+
+static void brake_motor(motors_t motor)
+{
+  switch(motor) {
+    case MOTOR_RIGHT:   LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOCLR   = (1u << RIGHT_BRAKE_PINNO);   break;
+    case MOTOR_LEFT:    LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOSET    = (1u << LEFT_BRAKE_PINNO);    break;
+    case MOTOR_SPINDLE: LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIOCLR = (1u << SPINDLE_BRAKE_PINNO); break;
+    default: DOASSERT();
+  }
+}
+
+static void release_brake(motors_t motor)
+{
+  switch(motor) {
+    case MOTOR_RIGHT:   LPC_GPIOx(RIGHT_BRAKE_PORTNO)->FIOSET   = (1u << RIGHT_BRAKE_PINNO);   break;
+    case MOTOR_LEFT:    LPC_GPIOx(LEFT_BRAKE_PORTNO)->FIOCLR    = (1u << LEFT_BRAKE_PINNO);    break;
+    case MOTOR_SPINDLE: LPC_GPIOx(SPINDLE_BRAKE_PORTNO)->FIOSET = (1u << SPINDLE_BRAKE_PINNO); break;
+    default: DOASSERT();
+  }
+}
 
 static void set_all_motors_enabled(bool enabled)
 {
-  if(enabled) {
-    LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOCLR = (1u << RIGHT_ENABLE_PINNO);
-    LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = (1u << LEFT_ENABLE_PINNO);
-    LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = (1u << SPINDLE_ENABLE_PINNO);
-  } else {
-    LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOSET = (1u << RIGHT_ENABLE_PINNO);
-    LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOCLR = (1u << LEFT_ENABLE_PINNO);
-    LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOSET = (1u << SPINDLE_ENABLE_PINNO);
+  if(!motor_debug_mode_active) {
+    if(enabled) {
+      LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOCLR = (1u << RIGHT_ENABLE_PINNO);
+      LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOSET = (1u << LEFT_ENABLE_PINNO);
+      LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOCLR = (1u << SPINDLE_ENABLE_PINNO);
+    } else {
+      LPC_GPIOx(RIGHT_ENABLE_PORTNO)->FIOSET = (1u << RIGHT_ENABLE_PINNO);
+      LPC_GPIOx(LEFT_ENABLE_PORTNO)->FIOCLR = (1u << LEFT_ENABLE_PINNO);
+      LPC_GPIOx(SPINDLE_ENABLE_PORTNO)->FIOSET = (1u << SPINDLE_ENABLE_PINNO);
+    }
+    motors_enabled = enabled;
   }
-  motors_enabled = enabled;
 }
 
 void __attribute__ ((interrupt)) EINT1_IRQHandler(void)
@@ -225,60 +244,70 @@ static void update_motor_speed(void)
 {
   bool timer_expired = false;
   bool any_requested_speed = false;
-  
-  if(systimer_is_expired(&motor_speed_timer)) {
-    timer_expired = true;
-    systimer_start(&motor_speed_timer, 100);
-  }
 
-  // Disable motors if all motors are off for a while
-  for(uint8_t i=0 ; i < MOTOR_NUMBER_OF_MOTORS ; i++) {
-    if(requestedspeed[i] != 0) {
-      any_requested_speed = true;
-      break;
-    }
-  }
-  if(any_requested_speed) {
-    if(!motors_enabled) {
-      set_all_motors_enabled(true);
-    }
-    motor_idle_ticks = 0;
-  } else if(timer_expired && motor_idle_ticks < (MOTOR_IDLE_DISABLE_TIME_MS / 100)) {
-    motor_idle_ticks++;
-    if(motor_idle_ticks >= (MOTOR_IDLE_DISABLE_TIME_MS / 100) && motors_enabled) {
-      set_all_motors_enabled(false);
-    }
-  }
+  if(!motor_debug_mode_active) {
 
-  for(uint8_t i=0 ; i < MOTOR_NUMBER_OF_MOTORS ; i++) {
-    // Measure motor speed
-    if(timer_expired) {
-      motor_speed_steps[i] = motor_pulse_count[i] - motor_prev_pulse_count[i];
-      motor_prev_pulse_count[i] = motor_pulse_count[i];
+    if(systimer_is_expired(&motor_speed_timer)) {
+      timer_expired = true;
+      systimer_start(&motor_speed_timer, 100);
     }
-    // Brake wheel motors if going too fast forward (downhill)
-    if(i != MOTOR_SPINDLE && currentspeed_times_100[i] >= 0) {
-      if(motor_pulse_count[i] - motor_prev_pulse_count[i] > (PULSES_PER_100MS_AT_100_PERCENT_SPEED * (uint32_t)currentspeed_times_100 / 100)) {
-        BRAKE_MOTOR(i);
-      } else {
-        RELEASE_BRAKE(i);
+
+    // Disable motors if all motors are off for a while
+    for(uint8_t i=0 ; i < MOTOR_NUMBER_OF_MOTORS ; i++) {
+      if(requestedspeed[i] != 0) {
+        any_requested_speed = true;
+        break;
       }
     }
-    // Control motor speed ramps
-    if(timer_expired || ramps[i] == 100) {
-      int32_t speeddiff = ((int32_t)requestedspeed[i] * 100) - currentspeed_times_100[i];
-      speeddiff = speeddiff * ramps[i] / 100;
-      currentspeed_times_100[i] += speeddiff;
-
-      if(currentspeed_times_100[i] >= 0) {
-        setdirection(i, 0);
-        motor_direction_sign[i] = true;
-      } else {
-        setdirection(i, 1);
-        motor_direction_sign[i] = false;
+    if(any_requested_speed) {
+      if(!motors_enabled) {
+        set_all_motors_enabled(true);
       }
+      motor_idle_ticks = 0;
+    } else if(timer_expired && motor_idle_ticks < (MOTOR_IDLE_DISABLE_TIME_MS / 100)) {
+      motor_idle_ticks++;
+      if(motor_idle_ticks >= (MOTOR_IDLE_DISABLE_TIME_MS / 100) && motors_enabled) {
+        set_all_motors_enabled(false);
+      }
+    }
 
-      setpwm(i, labs(currentspeed_times_100[i]));
+    for(uint8_t i=0 ; i < MOTOR_NUMBER_OF_MOTORS ; i++) {
+      // Measure motor speed
+      if(timer_expired) {
+        motor_speed_steps[i] = motor_pulse_count[i] - motor_prev_pulse_count[i];
+        motor_prev_pulse_count[i] = motor_pulse_count[i];
+      }
+      // Brake wheel motors if going too fast forward (downhill)
+      if(i != MOTOR_SPINDLE && currentspeed_times_100[i] >= 0) {
+        if(motor_pulse_count[i] - motor_prev_pulse_count[i] > (PULSES_PER_100MS_AT_100_PERCENT_SPEED * (uint32_t)currentspeed_times_100 / 100)) {
+          brake_motor(i);
+        } else {
+          release_brake(i);
+        }
+      }
+      
+      // Brake disc motor immediately if speed is set to 0
+      if(currentspeed_times_100[MOTOR_SPINDLE] == 0) {
+        brake_motor(MOTOR_SPINDLE);
+      } else {
+        release_brake(MOTOR_SPINDLE);
+      }
+      // Control motor speed ramps
+      if(timer_expired || ramps[i] == 100) {
+        int32_t speeddiff = ((int32_t)requestedspeed[i] * 100) - currentspeed_times_100[i];
+        speeddiff = speeddiff * ramps[i] / 100;
+        currentspeed_times_100[i] += speeddiff;
+
+        if(currentspeed_times_100[i] >= 0) {
+          setdirection(i, 0);
+          motor_direction_sign[i] = true;
+        } else {
+          setdirection(i, 1);
+          motor_direction_sign[i] = false;
+        }
+
+        setpwm(i, labs(currentspeed_times_100[i]));
+      }
     }
   }
 }
@@ -286,6 +315,11 @@ static void update_motor_speed(void)
 void task_motor(void)
 {
   update_motor_speed();
+}
+
+void motor_debug_mode(bool debugmode)
+{
+  motor_debug_mode_active = debugmode;
 }
 
 int32_t get_motor_distance(motors_t motor)
