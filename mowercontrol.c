@@ -13,7 +13,7 @@
 #include "menu.h"
 #include "scheduler.h"
 
-#define NUMBER_OF_STOPREASONS 7
+#define NUMBER_OF_STOPREASONS 8
 static const char *stopreason_text[NUMBER_OF_STOPREASONS] = {
     "power on",
     "Stopbtn pressed",
@@ -21,7 +21,8 @@ static const char *stopreason_text[NUMBER_OF_STOPREASONS] = {
     "Mower tilted",
     "Timeout in turn",
     "Charger disconnected",
-    "Charge complete"
+    "Charge complete",
+    "Runtime timeout"
 };
 
 uint8_t stopreason;
@@ -66,7 +67,8 @@ typedef enum {
     mowstate_start_after_charge,
     mowstate_start_after_charge_2,
     mowstate_tilted,
-    mowstate_sideways_downhill
+    mowstate_sideways_downhill,
+    mowstate_obstacle_timeout
 }mowstate_t;
 static mowstate_t mowstate;
 static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
@@ -74,7 +76,9 @@ static bool findhome;
 static bool circlecut;
 static systimer_t lowsocpowerofftimer;
 static systimer_t circlecuttimer;
+static systimer_t obstacletimer;
 static uint8_t tiltcount;
+static uint8_t timeoutcount;
 
 #define SLOW_SPEED      20
 #define INTERMEDIATE_SPEED 30
@@ -101,6 +105,7 @@ static uint8_t tiltcount;
 #define TIME_TO_TURN_BACK_MS 300
 #define CIRCLECUT_SPEED_INCREASE_INTERVAL_MS 5000UL
 #define CIRCLECUT_START_SPEED 20
+#define MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE 180000UL
 
 void init_mowercontrol(bool start_stopped, uint8_t reason_code) {
     stopreason = reason_code;
@@ -132,11 +137,15 @@ void stop_all_motors(void) {
     set_motor_speed(MOTOR_SPINDLE, 0);
 }
 
+static bool mowertilted(void) {
+    return(abs(get_pitch()) > TILTED_ANGLE || abs(get_roll()) > TILTED_ANGLE);
+}
+
 /* Check sensors and update mainstate, mowstate and turnleft if needed */
 void checksensors(bool wirefound) {
     if(get_charger_connected()) {
         mainstate = mainstate_startcharge;
-    } else if(abs(get_pitch()) > TILTED_ANGLE || abs(get_roll()) > TILTED_ANGLE) {
+    } else if(mowertilted()) {
         stop_all_motors();
         mowstate = mowstate_tilted;
         circlecut = false;
@@ -145,9 +154,13 @@ void checksensors(bool wirefound) {
         set_motor_speed(MOTOR_SPINDLE, 0);
         mowstate = mowstate_backoff;
         circlecut = false;
+        systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
+        timeoutcount = 0;
     } else if(get_sensor(SENSOR_FRONT)) {
         mowstate = mowstate_backoff;
         circlecut = false;
+        systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
+        timeoutcount = 0;
     } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
         circlecut = false;
         if(findhome) {
@@ -158,6 +171,8 @@ void checksensors(bool wirefound) {
             turnleft = false;
             mowstate = mowstate_turn;
         }
+        systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
+        timeoutcount = 0;
     } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
         circlecut = false;
         if(findhome) {
@@ -168,6 +183,12 @@ void checksensors(bool wirefound) {
             turnleft = true;
             mowstate = mowstate_turn;
         }
+        systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
+        timeoutcount = 0;
+    } else if(circlecut) {
+        systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
+    } else if(systimer_is_expired(&obstacletimer)) {
+        mowstate = mowstate_obstacle_timeout;
     }
 }
 
@@ -207,6 +228,11 @@ void mow_state(void) {
     left_sensor_inside = get_sensor(SENSOR_LEFT_WIRE_INSIDE);
     right_sensor_inside = get_sensor(SENSOR_RIGHT_WIRE_INSIDE);
 
+    // Make sure disc stops in all states when tilted
+    if(mowertilted()) {
+        set_motor_speed(MOTOR_SPINDLE, 0);
+    }
+
     switch(mowstate) {
         case mowstate_startmow:
             if(right_sensor_inside == false || left_sensor_inside == false) {
@@ -220,6 +246,7 @@ void mow_state(void) {
                 systimer_start(&circlecuttimer, CIRCLECUT_SPEED_INCREASE_INTERVAL_MS);
                 circlecut_speed = CIRCLECUT_START_SPEED * 1000u;
             }
+            systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
             break;
         case mowstate_running:
             tiltcount = 0;
@@ -244,6 +271,7 @@ void mow_state(void) {
                 set_motor_speed(MOTOR_LEFT, DEFAULT_SPEED);
             }
             
+            // Handle downhill problem workarounds
             roll = get_roll();
             pitch = get_pitch();
             if(avoid_downhill && pitch < -9) {
@@ -261,12 +289,18 @@ void mow_state(void) {
                     downhill_turnleft = false;
                 }
             }
-            if(soc < TURN_OFF_DISC_SOC) {
+
+            // Save battery so we can get to changer before running out of battery
+            if(soc < TURN_OFF_DISC_SOC || mowertilted()) {
                 set_motor_speed(MOTOR_SPINDLE, 0);
             } else {
                 set_motor_speed(MOTOR_SPINDLE, SPINDLE_DEFAULT_SPEED);
             }
+
+            // Check if any sensor indicates a problem
             checksensors(false);
+
+            // Go to charger if its time to recharge battery
             if(soc < GO_TO_CHARGE_STATION_SOC || !in_schedule_time()) {
                 findhome = true;
             }
@@ -358,6 +392,16 @@ void mow_state(void) {
                 mainstate = mainstate_stopped;
             }
             break;
+        case mowstate_obstacle_timeout:
+            if(timeoutcount < 2) {
+                timeoutcount++;
+                systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
+                mowstate = mowstate_backoff;
+            } else {
+                stopreason = 7;
+                mainstate = mainstate_stopped;
+            }
+            break;
         case mowstate_turn:
             set_motor_ramp(MOTOR_RIGHT, FAST_RAMP);
             set_motor_ramp(MOTOR_LEFT, FAST_RAMP);
@@ -408,6 +452,7 @@ void mow_state(void) {
             }
             break;
         case mowstate_start_after_charge:
+            systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
             set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
             set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
             set_motor_speed(MOTOR_RIGHT, -SLOW_SPEED);

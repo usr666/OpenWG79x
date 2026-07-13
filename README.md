@@ -20,14 +20,17 @@ This software does not fulfil any safety standards.
 - Stop button
 - Storing of current state in non volatile memory
 - Scheduling
+- Detect when mower is stuck and wheels just spin
 
 ### What is not implemented/working
-- Detect when mower is stuck and wheels just spin
 - Detect when mower is stuck and just moves back and forth in a small area
 - Detect when motors are blocked and wheel/disc does not move
 - Detect motor overcurrent?
 - Pin code
-  
+- Rain sensor
+- Poweroff display backlight when idle
+- Retry when stuck
+
 ## Setup build environment
 Use a linux machine, for example Ubuntu 20.04.  
 Install gcc-arm:  
