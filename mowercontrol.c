@@ -79,6 +79,7 @@ static systimer_t circlecuttimer;
 static systimer_t obstacletimer;
 static uint8_t tiltcount;
 static uint8_t timeoutcount;
+static uint8_t backoffcount;
 
 #define SLOW_SPEED      20
 #define INTERMEDIATE_SPEED 30
@@ -242,6 +243,7 @@ void mow_state(void) {
                 mowstate = mowstate_running;
                 mowing = true;
             }
+            backoffcount = 0;
             if(circlecut) {
                 systimer_start(&circlecuttimer, CIRCLECUT_SPEED_INCREASE_INTERVAL_MS);
                 circlecut_speed = CIRCLECUT_START_SPEED * 1000u;
@@ -417,7 +419,21 @@ void mow_state(void) {
             mowstate = mowstate_turn_2;
             break;
         case mowstate_turn_2:
-            if(systimer_is_expired(&mowtimer)) {
+            if(mowertilted()) {
+                stop_all_motors();
+                mowstate = mowstate_tilted;
+                circlecut = false;
+            } else if(get_sensor(SENSOR_FRONT) || get_sensor(SENSOR_LIFT)) {
+                set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
+                set_motor_speed(MOTOR_SPINDLE, 0);
+                if(backoffcount >= 2) {
+                    stopreason = 4;
+                    mainstate = mainstate_stopped;
+                } else {
+                    backoffcount++;
+                    mowstate = mowstate_backoff;
+                }
+            } else if(systimer_is_expired(&mowtimer)) {
                 if(turnleft) {
                     othersensor = right_sensor_inside;
                 } else {
@@ -425,8 +441,13 @@ void mow_state(void) {
                 }
                 if(othersensor == false) {
                     if(systimer_is_expired(&timeouttimer)) {
-                        mainstate = mainstate_stopped;
-                        stopreason = 4;
+                        if(backoffcount >= 2) {
+                            stopreason = 4;
+                            mainstate = mainstate_stopped;
+                        } else {
+                            backoffcount++;
+                            mowstate = mowstate_backoff;
+                        }
                     }
                 } else {
                     set_motor_speed(MOTOR_RIGHT, DEFAULT_SPEED);
@@ -439,6 +460,7 @@ void mow_state(void) {
         case mowstate_turn_3:
             checksensors(false);
             if(systimer_is_expired(&mowtimer)) {
+                backoffcount = 0;
                 if(right_sensor_inside == false && left_sensor_inside == false) {
                     mowstate = mowstate_out_of_area;
                 } else {
