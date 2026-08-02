@@ -15,7 +15,8 @@ uint8_t u8g_com_hw_spi_fn(u8g_t *u8g, uint8_t msg, uint8_t arg_val, void *arg_pt
 void init_hal_display(void) {
 
 // Configure SPI (LCD)
-  LPC_SC->PCLKSEL0 |= (1 << 16);  // set SPI CCLK
+  LPC_SC->PCLKSEL0 |= (1 << 16);  // set SPI CLK = CCLK
+  LPC_SC->PCONP &= ~((1 << 21) | (1 << 10)); //Disable SSP0 and SSP1 to avoid collision with SPI function
 
   LPC_GPIO1->FIODIR |= (1 << 20);   // P1.20 output mode.
   LPC_GPIO0->FIODIR |= (1 << rstb); // p0.19 output mode.
