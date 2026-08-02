@@ -6,6 +6,7 @@
 #include "hal/hal_motor.h"
 #include "hal/hal_charger.h"
 #include "hal/hal_adc.h"
+#include "hal/hal_remotecom.h"
 #include "display.h"
 
 #include "hal/hal_mcu.h"//debug
@@ -16,6 +17,7 @@ static int8_t rightspeed=0, leftspeed=0, spindlespeed=0;
 static bool wiresensor_mode_near = true, wiresensor_polarity = true;
 static uint8_t key4_count = 0, key5_count = 0, key6_count = 0;
 static bool menuactive;
+
 typedef enum {
     taskstate_init = 0,
     taskstate_debugsensors,
@@ -24,6 +26,7 @@ typedef enum {
     taskstate_debugcharger,
     taskstate_debugadc,
     taskstate_debugwiresensor,
+    taskstate_debugremotecom,
     taskstate_inactive,
 
     taskstate_number_of_states
@@ -56,7 +59,7 @@ static void print_init_menu(void)
     print_text(0, "DEBUGMENU");
     print_text(1, "1=SENSORS 2=GPIO");
     print_text(2, "3=MOTOR 4=CHARGER");
-    print_text(3, "5=ADC 6=WIRESENS");
+    print_text(3, "5=ADC 6=WIRESENS 7=RC");
     sprintf(buffer, "%ld", systick_cnt);
     print_text(4, buffer);
 }
@@ -151,8 +154,16 @@ void print_wiresensor_menu(void)
     }
 }
 
+static void print_remotecom_menu(void)
+{
+    print_text(0, "Remote Com Debug");
+    print_text(1, "2=RCV, 3=SEND 0x42");
+}
+
 void task_debugmenu(void) {
     keys_t currentpressedkey;
+    uint8_t rxbyte;
+    char buffer[64];
     currentpressedkey = get_pressed_key();
 
     switch(taskstate) {
@@ -185,6 +196,10 @@ void task_debugmenu(void) {
                     taskstate = taskstate_debugwiresensor;
                     wire_sensor_debug(true, wiresensor_polarity, wiresensor_mode_near, true);
                     set_text_size(10);
+                }
+                if(currentpressedkey==KEY7) {
+                    clear_display();
+                    taskstate = taskstate_debugremotecom;
                 }
                 if(currentpressedkey==KEYBACK) {
                     clear_display();
@@ -339,6 +354,26 @@ void task_debugmenu(void) {
                 if(currentpressedkey==KEY3) {
                     wire_sensor_debug(true, wiresensor_polarity, wiresensor_mode_near, true);
                     clear_display();
+                }
+            }
+            break;
+        case taskstate_debugremotecom:
+            print_remotecom_menu();
+            if(lastpressedkey==KEY_NONE) {
+                if(currentpressedkey==KEYBACK) {
+                    clear_display();
+                    taskstate = taskstate_init;
+                }
+                if(currentpressedkey==KEY3) {
+                    remotecom_send_byte(0x42);
+                }
+                if(currentpressedkey==KEY2) {
+                    if(remotecom_recv_byte(&rxbyte)) {
+                        sprintf(buffer, "RX: 0x%02X", rxbyte);
+                        print_text(2, buffer);
+                    } else {
+                        print_text(2, "RX: None");
+                    }
                 }
             }
             break;                   

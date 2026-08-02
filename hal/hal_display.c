@@ -20,17 +20,15 @@ void init_hal_display(void) {
   LPC_GPIO1->FIODIR |= (1 << 20);   // P1.20 output mode.
   LPC_GPIO0->FIODIR |= (1 << rstb); // p0.19 output mode.
   LPC_GPIO0->FIODIR |= (1 << csb);  // p0.16 output mode.
+  LPC_GPIO0->FIODIR &= ~(1 << 17); // make sure miso is input mode.
   LPC_GPIO0->FIODIR |= (1 << a0);   // p0.20 output mode.
 
   LPC_PINCON->PINSEL0 |= (1 << 30) | (1 << 31); // p0.15 -> sck
-  LPC_PINCON->PINMODE0 |= (1 << 30);            // p0.15 Repeater mode *todo: need more checking
+  LPC_PINCON->PINSEL1 |= ( 0xc | 0x30 );  // p0.17 & p0.18 miso / mosi
+  LPC_PINCON->PINMODE1 |= (3 << 2);  // miso seems to work best with pulldown resistor
 
-  LPC_PINCON->PINSEL1 |= ( 0xc | 0x30 );  // p0.17 & p0.18 miso / mosi (no miso??)
-  LPC_PINCON->PINMODE1 |= ( (1 << 0) | (1 << 2) | (1 << 4));  // p0.16 p0.17 p0.18  repeater mode *todo: need more checking
-  LPC_PINCON->PINMODE1 |= (1 << 6);   // p0.19 repeater mode *todo: need more checking
- 
-  LPC_SPI->SPCR |= (1 << 5);  // SPI operates in Master mode.
-
+  LPC_SPI->SPCCR = 100;  // Around 250kHz SPI clock, should be fine
+  LPC_SPI->SPCR = 0x0020;  // SPI master, default settings
 
 //Configur u8g
   //u8g_InitComFn(&u8g, &u8g_dev_st7565_nhd_c12864_hw_spi, u8g_com_hw_spi_fn);

@@ -8,6 +8,7 @@
 #include "hal/hal_charger.h"
 #include "hal/hal_rtc.h"
 #include "hal/hal_nvm.h"
+#include "hal/hal_remotecom.h"
 #include "system.h"
 #include "display.h"
 #include "mowercontrol.h"
@@ -55,6 +56,7 @@ int main(void) {
   init_hal_adc();
   init_hal_power();
   init_hal_display();
+  init_hal_remotecom();
   init_hal_keyboard();
   init_hal_sensors();
   init_hal_charger();
