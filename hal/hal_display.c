@@ -1,4 +1,5 @@
 #include "hal_mcu.h"
+#include "hal_spi.h"
 #include "u8g.h"
 #include "system.h"
 #include <stdbool.h>
@@ -14,22 +15,10 @@ uint8_t u8g_com_hw_spi_fn(u8g_t *u8g, uint8_t msg, uint8_t arg_val, void *arg_pt
 
 void init_hal_display(void) {
 
-// Configure SPI (LCD)
-  LPC_SC->PCLKSEL0 |= (1 << 16);  // set SPI CLK = CCLK
-  LPC_SC->PCONP &= ~((1 << 21) | (1 << 10)); //Disable SSP0 and SSP1 to avoid collision with SPI function
-
   LPC_GPIO1->FIODIR |= (1 << 20);   // P1.20 output mode.
   LPC_GPIO0->FIODIR |= (1 << rstb); // p0.19 output mode.
   LPC_GPIO0->FIODIR |= (1 << csb);  // p0.16 output mode.
-  LPC_GPIO0->FIODIR &= ~(1 << 17); // make sure miso is input mode.
   LPC_GPIO0->FIODIR |= (1 << a0);   // p0.20 output mode.
-
-  LPC_PINCON->PINSEL0 |= (1 << 30) | (1 << 31); // p0.15 -> sck
-  LPC_PINCON->PINSEL1 |= ( 0xc | 0x30 );  // p0.17 & p0.18 miso / mosi
-  LPC_PINCON->PINMODE1 |= (3 << 2);  // miso seems to work best with pulldown resistor
-
-  LPC_SPI->SPCCR = 100;  // Around 250kHz SPI clock, should be fine
-  LPC_SPI->SPCR = 0x0020;  // SPI master, default settings
 
 //Configur u8g
   //u8g_InitComFn(&u8g, &u8g_dev_st7565_nhd_c12864_hw_spi, u8g_com_hw_spi_fn);
@@ -48,13 +37,6 @@ void set_backlight(bool on)
     LPC_GPIO1->FIOCLR = ( 1 << 20 );  // p1.20 LCD backlight ON
   }
 }
-void spi_out(uint8_t data)
-{
-  LPC_SPI->SPDR = data;
-  while ( ( (LPC_SPI->SPSR >> 7 ) & 1 ) == 0 )
-    ;
-}
-
 void u8g_Delay(uint16_t val)
 {
   delay_micro_seconds(1000UL*(uint32_t)val);
@@ -94,17 +76,17 @@ uint8_t u8g_com_hw_spi_fn(u8g_t *u8g, uint8_t msg, uint8_t arg_val, void *arg_pt
       break;
       
     case U8G_COM_MSG_WRITE_BYTE:
-      spi_out(arg_val);
+      spi_transfer(arg_val);
       u8g_MicroDelay();
       break;
-    
+
     case U8G_COM_MSG_WRITE_SEQ:
     case U8G_COM_MSG_WRITE_SEQ_P:
       {
         register uint8_t *ptr = arg_ptr;
         while( arg_val > 0 )
         {
-          spi_out(*ptr++);
+          spi_transfer(*ptr++);
           arg_val--;
         }
       }

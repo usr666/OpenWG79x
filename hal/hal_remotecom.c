@@ -1,8 +1,9 @@
 #include "hal_remotecom.h"
 #include "hal_mcu.h"
+#include "hal_spi.h"
 #include "system.h"
 
-#define CS_PIN 7
+#define CS_PIN 17 // swapped from p2.7 to p0.17 (was hal_spi's miso) to test whether CS/MISO were crossed in the wiring
 
 #define SC16IS750_RHR 0x00
 #define SC16IS750_THR 0x00
@@ -24,23 +25,16 @@
 
 #define BAUDRATE 38400
 
-extern void spi_out(uint8_t data);
-
-static uint8_t spi_transfer(uint8_t data)
-{
-    LPC_SPI->SPDR = data;
-    while (((LPC_SPI->SPSR >> 7) & 1) == 0);
-    return LPC_SPI->SPDR;
-}
-
 static void cs_select(void)
 {
-    LPC_GPIO2->FIOCLR = (1 << CS_PIN);
+    LPC_GPIO0->FIOCLR = (1 << CS_PIN);
+    delay_micro_seconds(20); // workaround for slow rise/fall time on p0.17
 }
 
 static void cs_deselect(void)
 {
-    LPC_GPIO2->FIOSET = (1 << CS_PIN);
+    LPC_GPIO0->FIOSET = (1 << CS_PIN);
+    delay_micro_seconds(20); // workaround for slow rise/fall time on p0.17
 }
 
 static uint8_t sc16is750_read(uint8_t reg)
@@ -69,7 +63,8 @@ static void sc16is750_write(uint8_t reg, uint8_t data)
 void init_hal_remotecom(void)
 {
     /* Configure CS pin as output */
-    LPC_GPIO2->FIODIR |= (1 << CS_PIN);
+    LPC_PINCON->PINSEL1 &= ~(3 << 2); // p0.17 -> gpio (cs)
+    LPC_GPIO0->FIODIR |= (1 << CS_PIN);
     cs_deselect();
     
     delay_micro_seconds(100);
