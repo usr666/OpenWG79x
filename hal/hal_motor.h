@@ -19,5 +19,6 @@ void set_motor_ramp(motors_t motor, uint8_t ramp_percent);
 void set_motor_speed(motors_t motor, int8_t speed);
 int32_t get_motor_distance(motors_t motor);
 int32_t get_motor_speed(motors_t motor);
+int8_t get_requested_motor_speed(motors_t motor);
 
 #endif

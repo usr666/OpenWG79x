@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "mowercontrol.h"
 #include "hal/hal_keyboard.h"
 #include "hal/hal_sensors.h"
 #include "hal/hal_motor.h"
@@ -12,6 +13,7 @@
 #include "debugmenu.h"
 #include "menu.h"
 #include "scheduler.h"
+#include "remotecom.h"
 
 #define NUMBER_OF_STOPREASONS 8
 static const char *stopreason_text[NUMBER_OF_STOPREASONS] = {
@@ -31,6 +33,10 @@ static bool mowing = false;
 bool avoid_downhill = false;
 bool sideways_down = false;
 uint8_t circlespeed = 50;
+static bool remote_control_enabled = false;
+static int8_t remote_control_left_speed;
+static int8_t remote_control_right_speed;
+static int8_t remote_control_disc_speed;
 
 typedef enum {
     mainstate_idle = 0,
@@ -68,8 +74,15 @@ typedef enum {
     mowstate_start_after_charge_2,
     mowstate_tilted,
     mowstate_sideways_downhill,
-    mowstate_obstacle_timeout
+    mowstate_obstacle_timeout,
+    mowstate_rc_idle,
+    mowstate_rc_running,
+    mowstate_rc_stopped,
+    mowstate_rc_forcerun,
+    mowstate_rc_turn,
+    mowstate_rc_turn_forcerun
 }mowstate_t;
+
 static mowstate_t mowstate;
 static bool turnleft; // Indicates turn direction if turning. true = turn left, false = turn right
 static bool findhome;
@@ -77,6 +90,8 @@ static bool circlecut;
 static systimer_t lowsocpowerofftimer;
 static systimer_t circlecuttimer;
 static systimer_t obstacletimer;
+static systimer_t forcerunwiretimer;
+static systimer_t rc_turn_timer;
 static uint8_t tiltcount;
 static uint8_t timeoutcount;
 static uint8_t backoffcount;
@@ -90,10 +105,14 @@ static uint8_t backoffcount;
 #define FAST_RAMP       30
 #define IMMEDIATE_RAMP 100
 #define TURN_TIME_MS    2500
+#define TURN_TIME_VARIATION_MS 500
 #define TURN_TIMEOUT_MS 10000
 #define BACKOFF_TIME_MS 1200
 #define WAIT_FOR_CHARGE_DETECT 4000
 #define MAX_TIME_OUT_OF_AREA 4000
+#define MAX_TIME_RC_OUTSIDE_WIRE 10000
+#define RC_TURN_STOPPED_MS_PER_DEGREE 28
+#define RC_TURN_MOVING_MS_PER_DEGREE 2800
 #define MAX_TIME_REFIND_WIRE 16000
 #define REVERSE_AFTER_CHARGE_TIME_MS 5000
 #define GO_TO_CHARGE_STATION_SOC 30
@@ -113,7 +132,114 @@ void init_mowercontrol(bool start_stopped, uint8_t reason_code) {
     mainstate = start_stopped ? mainstate_stopped : mainstate_idle;
     findhome = false;
     circlecut = false;
+    remote_control_enabled = false;
     systimer_start(&lowsocpowerofftimer, TIME_IN_LOW_SOC_BEFORE_POWEROFF);
+}
+
+uint8_t mowercontrol_get_state(void) {
+    if(remote_control_enabled) {
+        switch(mainstate) {
+            case mainstate_mow:
+                if(mowstate == mowstate_rc_turn || mowstate == mowstate_rc_turn_forcerun) {
+                    return 34; // rc_turning
+                } else {
+                    return 33; // rc_running
+                }
+            case mainstate_startcharge:
+            case mainstate_charging:
+                return 37; // rc_charging
+            //todo: 35 rc_normal_mow, once REMOTE_CONTROL_MOW is implemented
+            //todo: 36 rc_finding_charge, once REMOTE_CONTROL_FIND_CHARGER is implemented
+            default:
+                return 32; // rc_stopped
+        }
+    } else {
+        switch(mainstate) {
+            case mainstate_mow: 
+                return 1; // mowing
+            case mainstate_startcharge:
+            case mainstate_charging: 
+                return 2; // charging
+            case mainstate_wait_for_schedule: 
+                return 3;
+            case mainstate_stopped:
+            case mainstate_stopped_2: 
+                return 4; // stopped
+            default: 
+                return 0; // idle
+        }
+    }
+}
+
+bool remotecontrol_run(bool forcerun, int8_t left_speed, int8_t right_speed, int8_t disc_speed) {
+    if (!remote_control_enabled) {
+        return false;
+    }
+    if(mainstate == mainstate_mow) { // todo: handle charge, stopped, etc
+        if(forcerun) {
+            if(mowstate != mowstate_rc_forcerun) {
+                systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
+            }
+            mowstate = mowstate_rc_forcerun;
+        } else if(mowstate == mowstate_rc_idle || mowstate == mowstate_rc_running) {
+            mowstate = mowstate_rc_running;
+        } else {
+            return false;
+        }
+        remote_control_left_speed = left_speed;
+        remote_control_right_speed = right_speed;
+        remote_control_disc_speed = disc_speed;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool remotecontrol_turn(bool forcerun, int8_t wheel_speed, uint8_t turn_angle, bool turn_right, int8_t disc_speed) {
+    int8_t left_speed, right_speed, inner;
+    uint32_t duration_ms;
+
+    if (!remote_control_enabled) {
+        return false;
+    }
+    if (mainstate == mainstate_mow) {
+        if(forcerun) {
+            if(mowstate != mowstate_rc_turn_forcerun) {
+                systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
+            }
+            mowstate = mowstate_rc_turn_forcerun;
+        } else if(mowstate == mowstate_rc_idle || mowstate == mowstate_rc_running) {
+            mowstate = mowstate_rc_turn;
+            
+        } else {
+            return false;
+        }
+
+        if (wheel_speed == 0) {
+            left_speed = turn_right ? SLOW_SPEED : -SLOW_SPEED;
+            right_speed = turn_right ? -SLOW_SPEED : SLOW_SPEED;
+            duration_ms = (uint32_t)turn_angle * RC_TURN_STOPPED_MS_PER_DEGREE;
+        } else {
+            inner = (int8_t)((int16_t)wheel_speed * 8 / 10);
+            left_speed = turn_right ? wheel_speed : inner;
+            right_speed = turn_right ? inner : wheel_speed;
+            duration_ms = (uint32_t)turn_angle * RC_TURN_MOVING_MS_PER_DEGREE / (uint32_t)abs(wheel_speed);
+        }
+
+        set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+        set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+        set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
+        set_motor_speed(MOTOR_RIGHT, right_speed);
+        set_motor_speed(MOTOR_LEFT, left_speed);
+
+        remote_control_left_speed = wheel_speed;
+        remote_control_right_speed = wheel_speed;
+        remote_control_disc_speed = disc_speed;
+        systimer_start(&rc_turn_timer, duration_ms);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 static void print_init_menu(void)
@@ -123,10 +249,13 @@ static void print_init_menu(void)
     batteryvoltage = get_battery_voltage();
     sprintf(buffer, "%2ld.%1ldV %2d%% %02d:%02d", batteryvoltage/1000, (batteryvoltage/100)%10, get_battery_soc(), get_rtc_hour(), get_rtc_minute());
     print_text(0, buffer);
-    print_text(1, "Press START to mow");
-    print_text(2, "OK=Set 2=Dbg 3=Circle");
-    sprintf(buffer, "%ld", systick_cnt);
-    print_text(3, buffer);
+    if(remote_control_enabled) {
+        print_text(1, "Remote controlled");
+        print_text(2, "");
+    } else {
+        print_text(1, "START=mow OK=Settin");
+        print_text(2, "2=Dbg 3=Circle 4=RC");
+    }
 }
 
 void stop_all_motors(void) {
@@ -214,6 +343,8 @@ void mow_state(void) {
         print_text(0, "Finding home...");
     } else if(circlecut) {
         print_text(0, "Circle cutting...");
+    } else if(remote_control_enabled){
+        print_text(0, "Remote controlled");
     } else {
         print_text(0, "Mowing...");
     }
@@ -223,6 +354,7 @@ void mow_state(void) {
 
     if(get_sensor(SENSOR_STOPBTN)) {
         mainstate = mainstate_stopped;
+        remote_control_enabled = false;
         stopreason = 1;
         return;
     }
@@ -414,7 +546,7 @@ void mow_state(void) {
                 set_motor_speed(MOTOR_RIGHT, -SLOW_SPEED);
                 set_motor_speed(MOTOR_LEFT, SLOW_SPEED);
             }
-            systimer_start(&mowtimer, TURN_TIME_MS);
+            systimer_start(&mowtimer, TURN_TIME_MS + systick_cnt % TURN_TIME_VARIATION_MS);
             systimer_start(&timeouttimer, TURN_TIMEOUT_MS);
             mowstate = mowstate_turn_2;
             break;
@@ -426,7 +558,7 @@ void mow_state(void) {
             } else if(get_sensor(SENSOR_FRONT) || get_sensor(SENSOR_LIFT)) {
                 set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
                 set_motor_speed(MOTOR_SPINDLE, 0);
-                if(backoffcount >= 2) {
+                if(backoffcount >= 5) {
                     stopreason = 4;
                     mainstate = mainstate_stopped;
                 } else {
@@ -441,7 +573,7 @@ void mow_state(void) {
                 }
                 if(othersensor == false) {
                     if(systimer_is_expired(&timeouttimer)) {
-                        if(backoffcount >= 2) {
+                        if(backoffcount >= 5) {
                             stopreason = 4;
                             mainstate = mainstate_stopped;
                         } else {
@@ -517,7 +649,7 @@ void mow_state(void) {
             if(systimer_is_expired(&mowtimer)) {
                 set_motor_speed(MOTOR_RIGHT, 0);
                 set_motor_speed(MOTOR_LEFT, 0);
-                turnleft = true;
+                turnleft = (systick_cnt & 1) != 0;
                 mowstate = mowstate_turn;
             }
             break;
@@ -619,6 +751,98 @@ void mow_state(void) {
                 }
             }
             break;
+        case mowstate_rc_idle:
+            stop_all_motors();
+            break;
+        case mowstate_rc_running:
+            set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
+            set_motor_speed(MOTOR_RIGHT, remote_control_right_speed);
+            set_motor_speed(MOTOR_LEFT, remote_control_left_speed);
+            if(mowertilted() || get_sensor(SENSOR_LIFT)) {
+                set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
+                set_motor_speed(MOTOR_SPINDLE, 0);
+                mowstate = mowstate_rc_stopped;
+                break;
+            } else {
+                set_motor_speed(MOTOR_SPINDLE, remote_control_disc_speed);
+            }
+            if(get_sensor(SENSOR_FRONT)) {
+                mowstate = mowstate_rc_stopped;
+            } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
+                mowstate = mowstate_rc_stopped;
+            } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
+                mowstate = mowstate_rc_stopped;
+            }
+            break;
+        case mowstate_rc_stopped:
+            stop_all_motors();
+            mowstate = mowstate_rc_idle;
+            break;
+        case mowstate_rc_forcerun:
+            set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_LEFT, DEFAULT_RAMP);
+            set_motor_ramp(MOTOR_SPINDLE, DEFAULT_RAMP);
+            set_motor_speed(MOTOR_RIGHT, remote_control_right_speed);
+            set_motor_speed(MOTOR_LEFT, remote_control_left_speed);
+            if(mowertilted() || get_sensor(SENSOR_LIFT)) {
+                set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
+                set_motor_speed(MOTOR_SPINDLE, 0);
+                break;
+            } else {
+                set_motor_speed(MOTOR_SPINDLE, remote_control_disc_speed);
+            }
+            if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) || get_sensor(SENSOR_RIGHT_WIRE_INSIDE)) {
+                systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
+            }
+            if(systimer_is_expired(&forcerunwiretimer)) {
+                mainstate = mainstate_stopped;
+                remote_control_enabled = false;
+                stopreason = 2; // Out of area
+            }
+            break;
+        case mowstate_rc_turn:
+            if(mowertilted() || get_sensor(SENSOR_LIFT)) {
+                set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
+                set_motor_speed(MOTOR_SPINDLE, 0);
+                mowstate = mowstate_rc_stopped;
+                break;
+            } else {
+                set_motor_speed(MOTOR_SPINDLE, remote_control_disc_speed);
+            }
+            if(systimer_is_expired(&rc_turn_timer)) {
+                mowstate = mowstate_rc_running;
+            }
+            if(get_sensor(SENSOR_FRONT)) {
+                mowstate = mowstate_rc_stopped;
+            } else if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) == false) {
+                mowstate = mowstate_rc_stopped;
+            } else if(get_sensor(SENSOR_RIGHT_WIRE_INSIDE) == false) {
+                mowstate = mowstate_rc_stopped;
+            }
+            break;
+        case mowstate_rc_turn_forcerun:
+            if(mowertilted() || get_sensor(SENSOR_LIFT)) {
+                set_motor_ramp(MOTOR_SPINDLE, IMMEDIATE_RAMP);
+                set_motor_speed(MOTOR_SPINDLE, 0);
+                break;
+            } else {
+                set_motor_speed(MOTOR_SPINDLE, remote_control_disc_speed);
+            }
+            if(get_sensor(SENSOR_LEFT_WIRE_INSIDE) || get_sensor(SENSOR_RIGHT_WIRE_INSIDE)) {
+                systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
+            }
+            if(systimer_is_expired(&forcerunwiretimer)) {
+                mainstate = mainstate_stopped;
+                remote_control_enabled = false;
+                stopreason = 2; // Out of area
+                break;
+            }
+            if(systimer_is_expired(&rc_turn_timer)) {
+                mowstate = mowstate_rc_running;
+            }
+            break;
     }
     last_left_sensor_inside = left_sensor_inside;
     last_right_sensor_inside = right_sensor_inside;
@@ -628,9 +852,11 @@ void task_mowercontrol(void) {
     static keys_t lastpressedkey=0;
     static uint32_t chargecurrent;
     static systimer_t chargedata_timer, stoppedstate_timer;
+    static uint8_t lastreportedstate = 0xFF;
     char tmpstr[20];
     uint32_t batteryvoltage;
     uint8_t soc;
+    uint8_t reportedstate;
     keys_t currentpressedkey;
     currentpressedkey = get_pressed_key();
     soc = get_battery_soc();
@@ -642,7 +868,7 @@ void task_mowercontrol(void) {
         }
     } else {
         systimer_start(&lowsocpowerofftimer, TIME_IN_LOW_SOC_BEFORE_POWEROFF);
-    }    
+    }
 
     switch(mainstate) {
         case mainstate_idle:
@@ -664,6 +890,16 @@ void task_mowercontrol(void) {
                     circlecut = true;
                     mainstate = mainstate_mow;
                     mowstate = mowstate_startmow;
+                }
+                if(currentpressedkey == KEY4) {
+                    clear_display();
+                    findhome = false;
+                    circlecut = false;
+                    remote_control_enabled = true;
+                    mainstate = mainstate_mow;
+                    mowstate = mowstate_rc_idle;
+                    backoffcount = 0;
+                    systimer_start(&obstacletimer, MAX_RUNTIME_WITHOUT_HITTING_OBSTACLE);
                 }
                 if(currentpressedkey == KEYSTART) {
                     findhome = false;
@@ -782,6 +1018,12 @@ void task_mowercontrol(void) {
     lastpressedkey = currentpressedkey;
     is_stopped = (mainstate == mainstate_stopped || mainstate == mainstate_stopped_2);
 
-    sprintf(tmpstr, "State %d,%d", mainstate, mowstate);
-    print_text(3, tmpstr);
+    reportedstate = mowercontrol_get_state();
+    if(reportedstate != lastreportedstate) {
+        lastreportedstate = reportedstate;
+        remotecom_send_status();
+    }
+
+    //sprintf(tmpstr, "State %d,%d", mainstate, mowstate);
+    //print_text(3, tmpstr);
 }

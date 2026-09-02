@@ -40,7 +40,8 @@ void set_text_size(uint8_t size) {
 
 void print_text(uint8_t row, const char *str) {
     if(row < NUMBER_OF_ROWS) {
-        strncpy(textStr[row], str, CHARS_PER_ROW);
+        strncpy(textStr[row], str, CHARS_PER_ROW - 1);
+        textStr[row][CHARS_PER_ROW - 1] = '\0';
     }
 }
 

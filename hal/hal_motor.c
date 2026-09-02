@@ -332,6 +332,11 @@ int32_t get_motor_speed(motors_t motor)
   return motor_speed_steps[motor];
 }
 
+int8_t get_requested_motor_speed(motors_t motor)
+{
+  return requestedspeed[motor];
+}
+
 /* Controls the rate motor speed changes when changing motor speed. 
    1=Speed changes 1% per 100ms? 
    100=Speed changes immediately */

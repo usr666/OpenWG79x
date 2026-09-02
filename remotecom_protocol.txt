@@ -1,0 +1,82 @@
+Remote Communication Protocol v1.0
+==================================
+
+UART: 38400 baud, 8N1, no flow control.
+
+Byte order: all multi-byte fields are big-endian (most significant byte first).
+
+Frame layout
+------------
+START (1 byte) | MSG_ID (1 byte) | LEN (1 byte) | PAYLOAD (LEN bytes) | CRC (2 bytes)
+
+START   - 0x7E. Marks the beginning of a frame. Never escaped; a raw START
+          byte always (re)synchronizes the receiver to a new frame.
+ESC     - 0x7D. Any occurrence of START or ESC within MSG_ID, LEN, PAYLOAD,
+          or CRC is replaced on the wire by ESC followed by (byte ^ 0x20).
+MSG_ID  - identifies the message type.
+LEN     - number of payload bytes (unescaped) (0-255).
+PAYLOAD - message body; format defined per MSG_ID.
+CRC     - CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF) computed over the
+          unescaped MSG_ID + LEN + PAYLOAD.
+
+Message IDs
+-----------
+ID    Name                        Direction
+----  --------------------------  ---------------
+0x00  MOWER_STATUS                mower -> remote
+0x01  REMOTE_CONTROL_RUN          remote -> mower
+0x02  REMOTE_CONTROL_TURN         remote -> mower
+0x03  REMOTE_CONTROL_MOW          remote -> mower
+0x04  REMOTE_CONTROL_FIND_CHARGER remote -> mower
+0x05  REMOTE_CONTROL_POWEROFF     remote -> mower
+
+Message payloads
+-----------------
+
+0x00 MOWER_STATUS
+Sent every second from mower to remote cpu + immediately if state or sensor data changes.
+  Offset  Size  Field                Description
+  ------  ----  -------------------  -----------
+  0       1     state                0=idle, 1=mowing, 2=charging, 3=wait_for_schedule, 4=stopped, 32=rc_stopped, 33=rc_running, 34=rc_turning, 35=rc_normal_mow, 36=rc_finding_charge, 37=rc_charging
+  1       1     sensor_status        bit0=front bump, bit1=lift
+  2       1     wire_sensor_status   bit0=right wire inside, bit1=left wire inside, bit2=near wire
+  3       1     left_wheel_speed     Signed percent, -100..100 (-100=full reverse, 100=full forward)
+  4       1     right_wheel_speed    Signed percent, -100..100 (-100=full reverse, 100=full forward)
+  5       1     battery_soc          Battery state of charge, 0-100 percent
+
+0x01 REMOTE_CONTROL_RUN
+Sent from remote cpu to mower to drive/stop mower.
+  Offset  Size  Field         Description
+  ------  ----  ------------  -----------
+  0       1     left_speed    Left wheel speed in percent, -100..100.
+  1       1     right_speed   Right wheel speed in percent, -100..100.
+  2       1     disc_speed    Disc speed in percent, -100..100.
+  3       1     force_run     Do not stop when hitting obstacles
+
+0x02 REMOTE_CONTROL_TURN
+Sent from remote cpu to mower to make mower turn.
+  Offset  Size  Field         Description
+  ------  ----  ------------  -----------
+  0       1     wheel_speed   Nominal wheel speed in percent, -100..100.
+  1       1     turn_angle    Angle to turn in degrees, 0..255
+  2       1     turn_dir      Direction to turn. 0=left, 1=right.
+  3       1     disc_speed    Disc speed in percent, -100..100.
+  4       1     force_run     Do not stop when hitting obstacles
+
+0x03 REMOTE_CONTROL_MOW
+Sent from remote cpu to mower to make mower mow as it does in normal mode.
+  Offset  Size  Field         Description
+  ------  ----  ------------  -----------
+  No data
+
+0x04 REMOTE_CONTROL_FIND_CHARGER
+Sent from remote cpu to mower to make mower find charger as it does in normal mode.
+  Offset  Size  Field         Description
+  ------  ----  ------------  -----------
+  No data
+
+0x05 REMOTE_CONTROL_POWEROFF
+Sent from remote cpu to mower to poweroff mower
+  Offset  Size  Field         Description
+  ------  ----  ------------  -----------
+  No data

@@ -14,6 +14,7 @@
 #include "display.h"
 #include "mowercontrol.h"
 #include "scheduler.h"
+#include "remotecom.h"
 
 static void load_settings(bool *was_stopped, uint8_t *stopreason)
 {
@@ -66,6 +67,7 @@ int main(void) {
   set_backlight(true);
   init_hal_motor();
   init_scheduler();
+  init_remotecom();
 
   load_settings(&was_stopped, &stopreason);
   init_mowercontrol(was_stopped, stopreason);
@@ -85,6 +87,7 @@ int main(void) {
     task_motor();
     task_scheduler();
     task_mowercontrol();
+    task_remotecom();
 
     if(get_power_button()) {
       store_settings();
