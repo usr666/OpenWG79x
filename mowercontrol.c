@@ -112,7 +112,8 @@ static uint8_t backoffcount;
 #define MAX_TIME_OUT_OF_AREA 4000
 #define MAX_TIME_RC_OUTSIDE_WIRE 10000
 #define RC_TURN_STOPPED_MS_PER_DEGREE 28
-#define RC_TURN_MOVING_MS_PER_DEGREE 2800
+#define RC_TURN_INNER_PERCENT 50 // Inner wheel speed in percent of outer wheel during moving turn
+#define RC_TURN_MOVING_MS_PER_DEGREE_X_DIFF 840 // Measured. Lower than for a pivot turn since a moving turn slips less
 #define MAX_TIME_REFIND_WIRE 16000
 #define REVERSE_AFTER_CHARGE_TIME_MS 5000
 #define GO_TO_CHARGE_STATION_SOC 30
@@ -220,10 +221,10 @@ bool remotecontrol_turn(bool forcerun, int8_t wheel_speed, uint8_t turn_angle, b
             right_speed = turn_right ? -SLOW_SPEED : SLOW_SPEED;
             duration_ms = (uint32_t)turn_angle * RC_TURN_STOPPED_MS_PER_DEGREE;
         } else {
-            inner = (int8_t)((int16_t)wheel_speed * 8 / 10);
+            inner = (int8_t)((int16_t)wheel_speed * RC_TURN_INNER_PERCENT / 100);
             left_speed = turn_right ? wheel_speed : inner;
             right_speed = turn_right ? inner : wheel_speed;
-            duration_ms = (uint32_t)turn_angle * RC_TURN_MOVING_MS_PER_DEGREE / (uint32_t)abs(wheel_speed);
+            duration_ms = (uint32_t)turn_angle * RC_TURN_MOVING_MS_PER_DEGREE_X_DIFF / (uint32_t)abs(left_speed - right_speed);
         }
 
         set_motor_ramp(MOTOR_RIGHT, DEFAULT_RAMP);
