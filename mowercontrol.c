@@ -141,7 +141,9 @@ uint8_t mowercontrol_get_state(void) {
     if(remote_control_enabled) {
         switch(mainstate) {
             case mainstate_mow:
-                if(mowstate == mowstate_rc_turn || mowstate == mowstate_rc_turn_forcerun) {
+                if(mowstate == mowstate_rc_idle || mowstate == mowstate_rc_stopped) {
+                    return 32; // rc_stopped                
+                } else if(mowstate == mowstate_rc_turn || mowstate == mowstate_rc_turn_forcerun) {
                     return 34; // rc_turning
                 } else {
                     return 33; // rc_running
@@ -182,10 +184,8 @@ bool remotecontrol_run(bool forcerun, int8_t left_speed, int8_t right_speed, int
                 systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
             }
             mowstate = mowstate_rc_forcerun;
-        } else if(mowstate == mowstate_rc_idle || mowstate == mowstate_rc_running) {
+        } else  {
             mowstate = mowstate_rc_running;
-        } else {
-            return false;
         }
         remote_control_left_speed = left_speed;
         remote_control_right_speed = right_speed;
@@ -209,11 +209,8 @@ bool remotecontrol_turn(bool forcerun, int8_t wheel_speed, uint8_t turn_angle, b
                 systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
             }
             mowstate = mowstate_rc_turn_forcerun;
-        } else if(mowstate == mowstate_rc_idle || mowstate == mowstate_rc_running) {
-            mowstate = mowstate_rc_turn;
-            
         } else {
-            return false;
+            mowstate = mowstate_rc_turn;
         }
 
         if (wheel_speed == 0) {
