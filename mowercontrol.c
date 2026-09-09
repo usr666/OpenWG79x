@@ -141,18 +141,26 @@ uint8_t mowercontrol_get_state(void) {
     if(remote_control_enabled) {
         switch(mainstate) {
             case mainstate_mow:
-                if(mowstate == mowstate_rc_idle || mowstate == mowstate_rc_stopped) {
-                    return 32; // rc_stopped                
-                } else if(mowstate == mowstate_rc_turn || mowstate == mowstate_rc_turn_forcerun) {
-                    return 34; // rc_turning
-                } else {
-                    return 33; // rc_running
+                switch(mowstate) {
+                    case mowstate_rc_idle:
+                    case mowstate_rc_stopped:
+                        return 32; // rc_stopped
+                    case mowstate_rc_running:
+                    case mowstate_rc_forcerun:
+                        return 33; // rc_running
+                    case mowstate_rc_turn:
+                    case mowstate_rc_turn_forcerun:
+                        return 34; // rc_turning
+                    default: // Any normal mow state
+                        if(findhome) {
+                            return 36; // rc_finding_charge
+                        } else {
+                            return 35; // rc_normal_mow
+                        }
                 }
             case mainstate_startcharge:
             case mainstate_charging:
                 return 37; // rc_charging
-            //todo: 35 rc_normal_mow, once REMOTE_CONTROL_MOW is implemented
-            //todo: 36 rc_finding_charge, once REMOTE_CONTROL_FIND_CHARGER is implemented
             default:
                 return 32; // rc_stopped
         }
@@ -178,7 +186,9 @@ bool remotecontrol_run(bool forcerun, int8_t left_speed, int8_t right_speed, int
     if (!remote_control_enabled) {
         return false;
     }
-    if(mainstate == mainstate_mow) { // todo: handle charge, stopped, etc
+    if(mainstate == mainstate_mow || mainstate == mainstate_charging) { // todo: handle stopped
+        set_charger_initiate(false);
+        mainstate = mainstate_mow;
         if(forcerun) {
             if(mowstate != mowstate_rc_forcerun) {
                 systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
@@ -203,7 +213,9 @@ bool remotecontrol_turn(bool forcerun, int8_t wheel_speed, uint8_t turn_angle, b
     if (!remote_control_enabled) {
         return false;
     }
-    if (mainstate == mainstate_mow) {
+    if (mainstate == mainstate_mow || mainstate == mainstate_charging) {
+        set_charger_initiate(false);
+        mainstate = mainstate_mow;
         if(forcerun) {
             if(mowstate != mowstate_rc_turn_forcerun) {
                 systimer_start(&forcerunwiretimer, MAX_TIME_RC_OUTSIDE_WIRE);
@@ -234,6 +246,38 @@ bool remotecontrol_turn(bool forcerun, int8_t wheel_speed, uint8_t turn_angle, b
         remote_control_right_speed = wheel_speed;
         remote_control_disc_speed = disc_speed;
         systimer_start(&rc_turn_timer, duration_ms);
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool remotecontrol_mow(void) {
+    if (!remote_control_enabled) {
+        return false;
+    }
+    if (mainstate == mainstate_mow || mainstate == mainstate_charging) {
+        set_charger_initiate(false);
+        mainstate = mainstate_mow;
+        findhome = false;
+        circlecut = false;
+        mowstate = mowstate_startmow;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+bool remotecontrol_find_charger(void) {
+    if (!remote_control_enabled) {
+        return false;
+    }
+    if (mainstate == mainstate_mow || mainstate == mainstate_charging) {
+        set_charger_initiate(false);
+        mainstate = mainstate_mow;
+        findhome = true;
+        circlecut = false;
+        mowstate = mowstate_startmow;
         return true;
     } else {
         return false;
@@ -433,7 +477,7 @@ void mow_state(void) {
             checksensors(false);
 
             // Go to charger if its time to recharge battery
-            if(soc < GO_TO_CHARGE_STATION_SOC || !in_schedule_time()) {
+            if(soc < GO_TO_CHARGE_STATION_SOC || (!in_schedule_time() && !remote_control_enabled)) {
                 findhome = true;
             }
             break;
@@ -968,7 +1012,10 @@ void task_mowercontrol(void) {
             }
             if(get_charge_complete()) {
                 set_charger_initiate(false);
-                if(mowing) {
+                if(remote_control_enabled) {
+                    mainstate = mainstate_mow;
+                    mowstate = mowstate_rc_idle;
+                } else if(mowing) {
                     mainstate = mainstate_wait_for_schedule;
                 } else {
                     mainstate = mainstate_stopped;

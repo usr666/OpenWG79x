@@ -9,6 +9,8 @@ void task_mowercontrol(void);
 uint8_t mowercontrol_get_state(void);
 bool remotecontrol_run(bool forcerun, int8_t left_speed, int8_t right_speed, int8_t disc_speed);
 bool remotecontrol_turn(bool forcerun, int8_t wheel_speed, uint8_t turn_angle, bool turn_right, int8_t disc_speed);
+bool remotecontrol_mow(void);
+bool remotecontrol_find_charger(void);
 
 extern bool avoid_downhill;
 extern bool sideways_down;

@@ -13,6 +13,8 @@
 #define MSG_MOWER_STATUS 0x00
 #define MSG_REMOTE_CONTROL_RUN 0x01
 #define MSG_REMOTE_CONTROL_TURN 0x02
+#define MSG_REMOTE_CONTROL_MOW 0x03
+#define MSG_REMOTE_CONTROL_FIND_CHARGER 0x04
 
 #define MOWER_STATUS_LEN 6
 #define REMOTE_CONTROL_RUN_LEN 4
@@ -142,6 +144,12 @@ static void handle_frame(uint8_t msg_id, const uint8_t *payload, uint8_t len)
             break;
         }
         remotecontrol_turn(payload[4] != 0, clamp_speed((int8_t)payload[0]), payload[1], payload[2] != 0, clamp_speed((int8_t)payload[3]));
+        break;
+    case MSG_REMOTE_CONTROL_MOW:
+        remotecontrol_mow();
+        break;
+    case MSG_REMOTE_CONTROL_FIND_CHARGER:
+        remotecontrol_find_charger();
         break;
     default:
         break;
