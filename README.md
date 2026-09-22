@@ -1,5 +1,5 @@
 # Opensource firmware for Worx Landroid wg79x robotic mowers
-For now only model wg794 with circuit board db275 is supported, hopefully all WG79x-models in the future.
+For now only model wg790/791/794/etc? with circuit board db275 is supported, hopefully all WG79x-models in the future.
 Based on the LandLord project: https://github.com/Damme/LandLord/
 
 ## Current project status
@@ -20,13 +20,14 @@ This software does not fulfil any safety standards.
 - Stop button
 - Storing of current state in non volatile memory
 - Scheduling
+- Remote control via SPI/serial port
+- Pin code
 - Detect when mower is stuck and wheels just spin
 
 ### What is not implemented/working
 - Detect when mower is stuck and just moves back and forth in a small area
 - Detect when motors are blocked and wheel/disc does not move
 - Detect motor overcurrent?
-- Pin code
 - Rain sensor
 - Poweroff display backlight when idle
 - Retry when stuck

@@ -410,7 +410,7 @@ void mow_state(void) {
 
     switch(mowstate) {
         case mowstate_startmow:
-            if(right_sensor_inside == false || left_sensor_inside == false) {
+            if((remote_control_enabled == false) && (right_sensor_inside == false || left_sensor_inside == false)) {
                 mainstate = mainstate_stopped;
                 stopreason = 2;
             } else {

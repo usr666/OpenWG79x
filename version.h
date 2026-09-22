@@ -1,0 +1,7 @@
+#ifndef _VERSION_H
+#define _VERSION_H
+
+#define OPENWG79X_MAJORVERSION 0
+#define OPENWG79X_MINORVERSION 11
+
+#endif
