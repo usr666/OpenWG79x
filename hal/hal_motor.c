@@ -356,6 +356,12 @@ void set_motor_ramp(motors_t motor, uint8_t ramp_percent)
 */
 void set_motor_speed(motors_t motor, int8_t speed)
 {
-  requestedspeed[motor] = speed;
-  update_motor_speed(); // make sure currentspeed is updated immediately (if ramp is 100%)
+  if(motor_debug_mode_active) {
+    motor_direction_sign[motor] = (speed >= 0);
+    setdirection(motor, (speed >= 0) ? 0 : 1);
+    setpwm(motor, labs(((int32_t)speed) * 100));
+  } else {
+    requestedspeed[motor] = speed;
+    update_motor_speed(); // make sure currentspeed is updated immediately (if ramp is 100%)
+  }
 }
