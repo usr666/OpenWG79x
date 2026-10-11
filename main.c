@@ -32,6 +32,9 @@ static void load_settings(bool *was_stopped, uint8_t *stopreason)
     if(nvm_buffer[4] >= 1 && nvm_buffer[4] <= 99) {
         circlespeed = nvm_buffer[4];
     }
+    if(nvm_buffer[5] != 0) {
+        rc_turn_time = nvm_buffer[5];
+    }
 }
 
 void store_settings(void)
@@ -47,6 +50,7 @@ void store_settings(void)
     nvm_buffer[2] = schedule_endtime;
     nvm_buffer[3] = stopreason;
     nvm_buffer[4] = circlespeed;
+    nvm_buffer[5] = rc_turn_time;
 
     hal_nvm_store(nvm_buffer);
 }

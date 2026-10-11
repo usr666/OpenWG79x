@@ -33,6 +33,7 @@ static bool mowing = false;
 bool avoid_downhill = false;
 bool sideways_down = false;
 uint8_t circlespeed = 50;
+uint8_t rc_turn_time = 112; // Quarter milliseconds per degree when turning on the spot
 static bool remote_control_enabled = false;
 static int8_t remote_control_left_speed;
 static int8_t remote_control_right_speed;
@@ -111,9 +112,8 @@ static uint8_t backoffcount;
 #define WAIT_FOR_CHARGE_DETECT 4000
 #define MAX_TIME_OUT_OF_AREA 4000
 #define MAX_TIME_RC_OUTSIDE_WIRE 10000
-#define RC_TURN_STOPPED_MS_PER_DEGREE 28
 #define RC_TURN_INNER_PERCENT 50 // Inner wheel speed in percent of outer wheel during moving turn
-#define RC_TURN_MOVING_MS_PER_DEGREE_X_DIFF 840 // Measured. Lower than for a pivot turn since a moving turn slips less
+#define RC_TURN_MOVING_MS_PER_DEGREE_X_DIFF 840
 #define MAX_TIME_REFIND_WIRE 16000
 #define REVERSE_AFTER_CHARGE_TIME_MS 5000
 #define GO_TO_CHARGE_STATION_SOC 30
@@ -228,7 +228,7 @@ bool remotecontrol_turn(bool forcerun, int8_t wheel_speed, uint8_t turn_angle, b
         if (wheel_speed == 0) {
             left_speed = turn_right ? SLOW_SPEED : -SLOW_SPEED;
             right_speed = turn_right ? -SLOW_SPEED : SLOW_SPEED;
-            duration_ms = (uint32_t)turn_angle * RC_TURN_STOPPED_MS_PER_DEGREE;
+            duration_ms = (uint32_t)turn_angle * rc_turn_time / 4;
         } else {
             inner = (int8_t)((int16_t)wheel_speed * RC_TURN_INNER_PERCENT / 100);
             left_speed = turn_right ? wheel_speed : inner;

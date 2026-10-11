@@ -15,6 +15,7 @@ bool remotecontrol_find_charger(void);
 extern bool avoid_downhill;
 extern bool sideways_down;
 extern uint8_t circlespeed;
+extern uint8_t rc_turn_time;
 extern uint8_t stopreason;
 extern bool is_stopped;
 
